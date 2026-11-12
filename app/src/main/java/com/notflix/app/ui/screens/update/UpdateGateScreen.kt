@@ -140,6 +140,12 @@ fun UpdateGateScreen(info: UpdateInfo, onRetryCheck: () -> Unit) {
                     text = if (downloading) "İndiriliyor %$progress" else "İndir ve Kur",
                     onClick = {
                         if (!downloading) {
+                            // Kurulum izni yoksa once otomatik olarak ayar ekranini ac.
+                            if (!installer.canInstallPackages()) {
+                                installer.openInstallPermissionSettings()
+                                error = "Kurulum izni açıldı. İzin verdikten sonra tekrar 'İndir ve Kur' de."
+                                return@NotflixButton
+                            }
                             downloading = true
                             progress = 0
                             error = null
@@ -169,7 +175,11 @@ fun UpdateGateScreen(info: UpdateInfo, onRetryCheck: () -> Unit) {
             }
             Spacer(modifier = Modifier.height(16.dp))
             Text(
-                text = "Kurulum ekranı açılmazsa 'Bilinmeyen kaynaklara izin ver' seçeneğini aç.",
+                text = if (installer.canInstallPackages()) {
+                    "Kurulum ekranı açılmazsa 'Bilinmeyen kaynaklara izin ver' seçeneğini aç."
+                } else {
+                    "Kurulum için 'Bilinmeyen kaynaklara izin ver' gerekiyor. 'İndir ve Kur' deyince izni açan ekran gelir."
+                },
                 color = NotflixColors.TextMuted,
                 fontSize = 10.5.sp,
                 lineHeight = 15.sp,

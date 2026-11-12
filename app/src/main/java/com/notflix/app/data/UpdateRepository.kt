@@ -38,6 +38,10 @@ class UpdateRepository {
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(20, TimeUnit.SECONDS)
         .followRedirects(true)
+        // GitHub raw sunucusu eski dosyayi cache'leyip ayni surumu tekrar
+        // gosterebiliyor. Cache'i tamamen devre disi birakip her denetimde
+        // guncel surumu aliyoruz.
+        .cache(null)
         .build()
 
     suspend fun checkLatest(currentVersionCode: Int): UpdateResult {
@@ -54,10 +58,15 @@ class UpdateRepository {
         withContext(Dispatchers.IO) {
             if (url.isBlank()) return@withContext UpdateResult.NotConfigured
             try {
+                // Cache kirma (cache-busting): her denetimde sunucudan guncel
+                // surum gelir, eski surum tekrar gosterilmez.
+                val separator = if (url.contains('?')) "&" else "?"
+                val busted = "$url${separator}t=${System.currentTimeMillis()}"
                 val request = Request.Builder()
-                    .url(url)
+                    .url(busted)
                     .header("User-Agent", "NOTFLIX-Android")
-                    .header("Cache-Control", "no-cache")
+                    .header("Cache-Control", "no-cache, no-store, max-age=0")
+                    .header("Pragma", "no-cache")
                     .build()
                 client.newCall(request).execute().use { response ->
                     if (!response.isSuccessful) {
