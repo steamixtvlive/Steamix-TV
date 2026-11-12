@@ -939,7 +939,7 @@ private fun TrailerBackdrop(
             factory = { ctx ->
                 WebView(ctx).apply {
                     setBackgroundColor(android.graphics.Color.BLACK)
-                    setLayerType(android.view.View.LAYER_TYPE_SOFTWARE, null)
+                    setLayerType(android.view.View.LAYER_TYPE_NONE, null)
                     isFocusable = false
                     isFocusableInTouchMode = false
                     isClickable = false
@@ -1003,7 +1003,7 @@ private fun TrailerBackdrop(
                         trailerHtml(videoKey),
                         "text/html",
                         "UTF-8",
-                        null
+                        "https://filmmodu.news/"
                     )
                     holder[0] = this
                 }
