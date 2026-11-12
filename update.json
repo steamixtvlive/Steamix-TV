@@ -1,6 +1,6 @@
 {
-  "versionCode": 3,
-  "versionName": "1.0.1",
+  "versionCode": 5,
+  "versionName": "1.0.2",
   "apkUrl": "https://github.com/steamixtvlive/Steamix-TV/releases/latest/download/notflix.apk",
   "notes": "Fragman oynatıcısı düzeltildi (siyah ekran giderildi), ses ve oynat/durdur düğmeleri çalışıyor, fragman otomatik döngüye girdi. Ayarlarda modern güncelleme bölümü, giriş ekranı ve Tavsiye Robotu eklendi."
 }
