@@ -1,8 +1,6 @@
 {
-  "versionName": "1.0.45",
-  "versionCode": 46,
-  "downloadUrl": "https://github.com/steamixtvlive/Steamix-TV/releases/download/v1.0.45/SteamixTV_v1.0.45_release.apk",
-  "releaseUrl": "https://github.com/steamixtvlive/Steamix-TV/releases/tag/v1.0.45",
-  "releaseNotes": "Kullanıcı sözleşmesi, bakım durumu kalıcı kayıt ve TV/mobil ölçek düzeltmeleri",
-  "publishedAt": "2026-09-02T09:00:00Z"
+  "versionCode": 2,
+  "versionName": "1.0.0",
+  "apkUrl": "https://github.com/steamixtvlive/Steamix-TV/releases/latest/download/notflix.apk",
+  "notes": "Fragman oynatıcısı düzeltildi (siyah ekran giderildi), ses ve oynat/durdur düğmeleri çalışıyor, fragman otomatik döngüye girdi. Ayarlarda modern güncelleme bölümü, giriş ekranı ve Tavsiye Robotu eklendi."
 }
