@@ -147,6 +147,8 @@ fun DetailScreen(
                         )
                     )
             ) {
+                // Geri dugmesi odak zincirine girmez; kumandada yukarı tusu
+                // sayfayı kaydırır, seçim göstergeleri bozulmaz.
                 IconAction(
                     icon = Icons.Filled.KeyboardArrowLeft,
                     contentDescription = "Geri",
@@ -158,14 +160,12 @@ fun DetailScreen(
                             top = if (isTvLayout()) 18.dp else 10.dp
                         )
                         .background(Color.Black.copy(alpha = 0.4f), CircleShape)
-                        .focusRequester(backFocus)
                         .onPreviewKeyEvent { event ->
                             if (event.type == KeyEventType.KeyDown) {
                                 when (event.key) {
                                     Key.DirectionDown -> {
                                         runCatching { playFocus.requestFocus() }.isSuccess
                                     }
-                                    // Yukari tusu geri tusuna degil, sayfaya gitsin.
                                     Key.DirectionUp -> false
                                     else -> false
                                 }
@@ -217,12 +217,19 @@ private fun DetailContent(
     val episodesFocus = remember(detail.url) { FocusRequester() }
     val relatedFocus = remember(detail.url) { FocusRequester() }
     var zone by remember(detail.url) { mutableStateOf(DetailZone.Play) }
+    // Odak gercekten oyun butonuna dustu mu? (Bazi cihazlarda istek sessizce basarisiz olur.)
+    var playFocused by remember(detail.url) { mutableStateOf(false) }
+    // Su an hangi bolumde odak var (secim gostergesi bunu kullanir).
+    var zoneFocused by remember(detail.url) { mutableStateOf(DetailZone.Play) }
 
     LaunchedEffect(detail.url) {
-        delay(220)
-        repeat(10) {
-            if (runCatching { playFocus.requestFocus() }.isSuccess) return@LaunchedEffect
-            delay(120)
+        delay(180)
+        // Odak dogrulanana kadar tekrar dene: kumandayla acilan detayda
+        // odak her zaman oyun butonunda olmali.
+        repeat(25) {
+            if (playFocused) return@LaunchedEffect
+            runCatching { playFocus.requestFocus() }
+            delay(100)
         }
     }
 
@@ -256,9 +263,16 @@ private fun DetailContent(
             next >= zoneOrder.size -> return true
             else -> zoneOrder[next]
         }
-        val ok = runCatching { focusOf(target).requestFocus() }.isSuccess
-        if (ok) zone = target
-        return ok
+        // Odak istegi bazi cihazlarda sessizce basarisiz oluyor; bu yuzden
+        // birkac kez deneniyor ve odak dogrulaninca bolum degisiyor.
+        var moved = false
+        repeat(4) {
+            if (moved) return@repeat
+            runCatching { focusOf(target).requestFocus() }
+            if (zoneFocused == target) moved = true
+        }
+        if (moved) zone = target
+        return moved
     }
 
     val latestWatch = app.settings.watchHistory()
@@ -301,18 +315,13 @@ private fun DetailContent(
             .onPreviewKeyEvent { event ->
                 if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                 when (event.key) {
-                    Key.DirectionDown -> {
-                        // Once sayfada asagi kayacak alan varsa kaydir, yoksa bolume gec.
-                        if (detailScroll.value < detailScroll.maxValue - 8f) {
-                            scope.launch { detailScroll.animateScrollBy(420f) }
-                            true
-                        } else {
-                            moveZone(1)
-                        }
-                    }
+                    // Asagi tusu bolumler arasinda gecer; odak gecince sayfa
+                    // otomatik kayar.
+                    Key.DirectionDown -> moveZone(1)
+                    // Yukarida once sayfa kaydirilir (en ustte degilse),
+                    // en ustteyken bolum geri gider.
                     Key.DirectionUp -> {
-                        // Yukarida once sayfa kaydirilir; en ustteyken bolume gecilir.
-                        if (detailScroll.value > 8f) {
+                        if (zone == DetailZone.Play && detailScroll.value > 8f) {
                             scope.launch { detailScroll.animateScrollBy(-420f) }
                             true
                         } else {
@@ -326,7 +335,10 @@ private fun DetailContent(
         DetailHero(
             detail = detail,
             playFocus = playFocus,
-            onPlayFocusChanged = { focused -> if (focused) zone = DetailZone.Play },
+            onPlayFocusChanged = { focused ->
+                playFocused = focused
+                if (focused) { zone = DetailZone.Play; zoneFocused = DetailZone.Play }
+            },
             actionLabel = actionLabel,
             progressLabel = progressLabel,
             favorite = favorite,
@@ -368,7 +380,7 @@ private fun DetailContent(
                         modifier = if (index == 0) {
                             Modifier
                                 .focusRequester(castFocus)
-                                .onFocusChanged { if (it.hasFocus) zone = DetailZone.Cast }
+                                .onFocusChanged { if (it.hasFocus) { zone = DetailZone.Cast; zoneFocused = DetailZone.Cast } }
                         } else {
                             Modifier
                         }
@@ -393,7 +405,7 @@ private fun DetailContent(
                             modifier = if (index == 0) {
                                 Modifier
                                     .focusRequester(seasonsFocus)
-                                    .onFocusChanged { if (it.hasFocus) zone = DetailZone.Seasons }
+                                    .onFocusChanged { if (it.hasFocus) { zone = DetailZone.Seasons; zoneFocused = DetailZone.Seasons } }
                             } else {
                                 Modifier
                             }
@@ -434,7 +446,7 @@ private fun DetailContent(
                                 modifier = if (index == 0) {
                                     Modifier
                                         .focusRequester(episodesFocus)
-                                        .onFocusChanged { if (it.hasFocus) zone = DetailZone.Episodes }
+                                        .onFocusChanged { if (it.hasFocus) { zone = DetailZone.Episodes; zoneFocused = DetailZone.Episodes } }
                                 } else {
                                     Modifier
                                 },
@@ -459,7 +471,7 @@ private fun DetailContent(
                 items = detail.related,
                 onItemClick = { card -> onOpenDetail(card.url, card.title) },
                 firstFocus = relatedFocus,
-                firstFocusChanged = { focused -> if (focused) zone = DetailZone.Related }
+                firstFocusChanged = { focused -> if (focused) { zone = DetailZone.Related; zoneFocused = DetailZone.Related } }
             )
         }
 

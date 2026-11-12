@@ -61,9 +61,10 @@ fun TrailerPlayer(
     var isVisible by remember(videoKey) { mutableStateOf(false) }
     var ready by remember(videoKey) { mutableStateOf(false) }
 
-    // Oynaticiya gonderilecek anlik durum (watch sayfasi degisebilir).
+    // Oynaticiya gonderilecek anlik durum: [0] = sessiz mi, [1] = oynuyor mu.
+    // (Watch sayfasi degisebilir, bu yuzden her sayfa sonrasi tekrar gonderilir.)
     val desired = remember(videoKey) { arrayOf(false, true) }
-    desired[0] = soundOn
+    desired[0] = !soundOn
     desired[1] = playing
 
     AndroidView(

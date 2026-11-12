@@ -31,6 +31,9 @@
 
   function apply(muted, play) {
     var applied = false;
+    // Istenen durum sayfada saklanir; temizleme scripti bunu tekrar uygular.
+    window.__svMuted = !!muted;
+    window.__svPaused = !play;
 
     // 1) YouTube sayfa oynaticisi: kendi ses/oynatma durumunu gunceller.
     var m = moviePlayer();

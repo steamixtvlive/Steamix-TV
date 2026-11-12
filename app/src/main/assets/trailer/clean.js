@@ -42,7 +42,11 @@
 
     try {
       v.loop = true;
-      // Ses durumu sadece uygulama tarafindan yonetilir; burada degistirme.
+      // Ses durumu sadece uygulama tarafindan yonetilir. YouTube sayfa
+      // yuklendikten sonra kendi mute ayarini geri uygulayabiliyor; bu yuzden
+      // istenen durum her turda tekrar uygulanir.
+      v.muted = !!window.__svMuted;
+      if (!window.__svMuted) { v.volume = 1; }
       v.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;' +
         'object-fit:cover;z-index:1;background:#000;' +
         'filter:brightness(1.18) contrast(1.12) saturate(1.14);';

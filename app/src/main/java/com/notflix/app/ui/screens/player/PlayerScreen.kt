@@ -1,4 +1,4 @@
-package com.notflix.app.ui.screens.player
+﻿package com.notflix.app.ui.screens.player
 
 import android.app.Activity
 import android.content.Context
@@ -12,7 +12,6 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -217,6 +216,7 @@ fun PlayerScreen(
     val focusManager = LocalFocusManager.current
 
     val focusRequester = remember { FocusRequester() }
+    val controlsFocus = remember { FocusRequester() }
     val panelFocus = remember { FocusRequester() }
     val view = LocalView.current
     val activity = remember(context) { context.findActivity() }
@@ -449,13 +449,44 @@ fun PlayerScreen(
         runCatching { focusRequester.requestFocus() }
     }
 
+    // Kontroller gorunurken odak kontrol dugmelerine gider; boylece kumanda
+    // ile oynat/ses/kalite/en-boy arasinda gezinilebilir.
+    LaunchedEffect(controlsVisible, panelOpen, qualityOpen, aspectOpen) {
+        if (!controlsVisible || panelOpen || qualityOpen || aspectOpen) return@LaunchedEffect
+        delay(120)
+        runCatching { controlsFocus.requestFocus() }
+    }
+
     LaunchedEffect(panelOpen) {
         if (panelOpen) {
             controlsVisible = false
             delay(90)
+            // Odak fare ile bir dugmede kalmis olabilir; liste basina zorla.
             runCatching { panelFocus.requestFocus() }
         } else {
             controlsVisible = true
+        }
+    }
+
+    // Panel/kalite/en-boy modali acildiginda odak modalin ilk ogesine gider;
+    // boylece kumanda ile modal icinde secim yapilabilir.
+    LaunchedEffect(panelOpen) {
+        if (panelOpen) {
+            controlsVisible = false
+            delay(90)
+            // Odak fare ile bir dugmede kalmis olabilir; liste basina zorla.
+            runCatching { panelFocus.requestFocus() }
+        } else {
+            controlsVisible = true
+        }
+    }
+
+    LaunchedEffect(aspectOpen, qualityOpen) {
+        if (aspectOpen || qualityOpen) {
+            controlsVisible = false
+            delay(120)
+            // Odak diger bir dugmede kalmis olabilir; modalin ilk ogesine al.
+            runCatching { focusManager.clearFocus() }
         }
     }
 
@@ -581,7 +612,6 @@ fun PlayerScreen(
             .fillMaxSize()
             .background(Color.Black)
             .focusRequester(focusRequester)
-            .focusable()
             .onPreviewKeyEvent { event ->
                 if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                 if (errorText != null) return@onPreviewKeyEvent false
@@ -606,56 +636,34 @@ fun PlayerScreen(
                 if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
                 if (panelOpen || qualityOpen || aspectOpen) return@onKeyEvent false
                 if (errorText != null) return@onKeyEvent false
-                // Kontroller gizliyken ekran tam ekran modundadir:
-                // yukarı/asagi kanal degistirir, kumandada gezinilir.
-                if (!controlsVisible) {
-                    when (event.key) {
-                        Key.DirectionUp -> {
-                            if (isLive) zap(1) else controlsVisible = true
+                when (event.key) {
+                    // Tam ekran modu (kontroller gizliyken): yukarı/asagi kanal
+                    // degistirir, sag ok kanal listesini acar.
+                    Key.DirectionUp -> {
+                        if (!controlsVisible && isLive) {
+                            zap(1)
                             true
+                        } else {
+                            false
                         }
-                        Key.DirectionDown -> {
-                            if (isLive) zap(-1) else controlsVisible = true
-                            true
-                        }
-                        Key.DirectionLeft, Key.DirectionRight -> {
-                            controlsVisible = true
-                            true
-                        }
-                        else -> false
                     }
-                } else {
-                    controlsVisible = true
-                    when (event.key) {
-                        Key.DirectionLeft -> {
-                            if (isLive) changeVolume(-0.1f) else seekBy(-10_000)
+                    Key.DirectionDown -> {
+                        if (!controlsVisible && isLive) {
+                            zap(-1)
                             true
+                        } else {
+                            false
                         }
-                        Key.DirectionRight -> {
-                            // Canli TV'de sag ok kanal listesini acar.
-                            if (isLive && channels.size > 1) {
-                                openChannelPanel()
-                            } else if (isLive) {
-                                changeVolume(0.1f)
-                            } else {
-                                seekBy(10_000)
-                            }
-                            true
-                        }
-                        Key.DirectionUp -> {
-                            if (isLive) zap(1) else changeVolume(0.1f)
-                            true
-                        }
-                        Key.DirectionDown -> {
-                            if (isLive) zap(-1) else changeVolume(-0.1f)
-                            true
-                        }
-                        Key.DirectionCenter, Key.Enter, Key.Spacebar -> {
-                            togglePlay()
-                            true
-                        }
-                        else -> false
                     }
+                    Key.DirectionRight -> {
+                        if (!controlsVisible && isLive && channels.size > 1) {
+                            openChannelPanel()
+                            true
+                        } else {
+                            false
+                        }
+                    }
+                    else -> false
                 }
             }
     ) {
@@ -811,6 +819,7 @@ fun PlayerScreen(
                                 contentDescription = if (isPlaying) "Duraklat" else "Oynat",
                                 size = if (isTv) 46.dp else 40.dp,
                                 filled = true,
+                                modifier = Modifier.focusRequester(controlsFocus),
                                 onClick = { togglePlay() }
                             )
                         }
@@ -1178,6 +1187,12 @@ private fun ChannelPanel(
     LaunchedEffect(selectedPos, group, needle) {
         runCatching { listState.scrollToItem(selectedPos) }
     }
+    // Panel acildiginda odak dogrudan kanal listesinde olsun (arama alaninda degil),
+    // boylece kumanda ile kanallar arasinda gezinebilirsin.
+    LaunchedEffect(Unit) {
+        delay(120)
+        runCatching { focusRequester.requestFocus() }
+    }
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -1229,6 +1244,8 @@ private fun ChannelPanel(
                     .onPreviewKeyEvent { event ->
                         if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                         when (event.key) {
+                            // Asagi tusu direkt kanal listesine gecsin; arama
+                            // alaninda kalmak kumandayi kilitler.
                             Key.DirectionDown -> {
                                 if (filtered.isNotEmpty()) {
                                     runCatching { focusRequester.requestFocus() }
@@ -1306,7 +1323,6 @@ private fun ChannelPanel(
                             )
                             .then(if (idx == focusIndex) Modifier.focusRequester(focusRequester) else Modifier)
                             // Kumandayla (D-pad) secilebilmesi icin focus alabilir olmali.
-                            .focusable()
                             .onFocusChanged { focused = it.isFocused }
                             .clickable { onSelect(idx) }
                             .padding(horizontal = 10.dp, vertical = 8.dp),
@@ -1393,6 +1409,11 @@ private fun AspectPanel(
         Triple("fill", "Doldur", "Ekranı kaplar, hafif esneme olabilir"),
         Triple("zoom", "Kırp", "Ekranı kaplar, kenarlardan kırpar")
     )
+    val firstRowFocus = remember { FocusRequester() }
+    LaunchedEffect(Unit) {
+        delay(90)
+        runCatching { firstRowFocus.requestFocus() }
+    }
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -1416,8 +1437,9 @@ private fun AspectPanel(
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
             )
-            options.forEach { (value, label, hint) ->
+            options.forEachIndexed { index, (value, label, hint) ->
                 AspectRow(
+                    modifier = if (index == 0) Modifier.focusRequester(firstRowFocus) else Modifier,
                     label = label,
                     hint = hint,
                     selected = selected == value,
@@ -1439,11 +1461,12 @@ private fun AspectRow(
     label: String,
     hint: String,
     selected: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     var focused by remember { mutableStateOf(false) }
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 8.dp, vertical = 2.dp)
             .clip(RoundedCornerShape(8.dp))
@@ -1490,6 +1513,11 @@ private fun QualityPanel(
     onSelect: (Int?) -> Unit,
     onClose: () -> Unit
 ) {
+    val firstRowFocus = remember { FocusRequester() }
+    LaunchedEffect(Unit) {
+        delay(90)
+        runCatching { firstRowFocus.requestFocus() }
+    }
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -1514,6 +1542,7 @@ private fun QualityPanel(
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
             )
             QualityRow(
+                modifier = Modifier.focusRequester(firstRowFocus),
                 label = "Otomatik",
                 selected = selected == null,
                 onClick = {
@@ -1563,10 +1592,15 @@ private fun QualityPanel(
 }
 
 @Composable
-private fun QualityRow(label: String, selected: Boolean, onClick: () -> Unit) {
+private fun QualityRow(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     var focused by remember { mutableStateOf(false) }
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 8.dp, vertical = 2.dp)
             .clip(RoundedCornerShape(8.dp))
@@ -1682,11 +1716,12 @@ private fun ControlCircle(
     contentDescription: String,
     size: Dp,
     filled: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     var focused by remember { mutableStateOf(false) }
     Box(
-        modifier = Modifier
+        modifier = modifier
             .size(size)
             .clip(CircleShape)
             .background(
@@ -1698,8 +1733,6 @@ private fun ControlCircle(
                 if (focused) Color.White else Color.White.copy(alpha = 0.22f),
                 CircleShape
             )
-            // Kumandayla (D-pad) secilebilmesi icin focus alabilir olmali.
-            .focusable()
             .onFocusChanged { focused = it.isFocused }
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
@@ -1729,7 +1762,6 @@ private fun SeekCircle(label: String, size: Dp = 52.dp, onClick: () -> Unit) {
                 if (focused) Color.White else Color.White.copy(alpha = 0.2f),
                 CircleShape
             )
-            .focusable()
             .onFocusChanged { focused = it.isFocused }
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
