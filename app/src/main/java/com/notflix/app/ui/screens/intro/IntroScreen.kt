@@ -68,37 +68,40 @@ import kotlinx.coroutines.launch
 
 private data class IntroPage(
     val title: String,
-    val text: String
+    val text: String,
+    val badge: String
 )
 
 private val pages = listOf(
     IntroPage(
         "NOTFLİX'e hoş geldiniz",
-        "Filmler, diziler ve canlı TV tek yerde. Kendi oynatıcımız, sade ve hızlı bir arayüz."
-    ),
-    IntroPage(
-        "Her ekranda çalışır",
-        "TV box, Google TV, akıllı TV, BlueStacks ve telefon. Uzaktan kumanda, air mouse, fare ve dokunmatik desteklenir."
-    ),
-    IntroPage(
-        "Telefonu yatay çevir",
-        "Ekran ölçeklenir; kartlar ve yazılar bulunduğun ekrana uyum sağlar. Dokunarak, kaydırarak ve tıklayarak kullan."
-    ),
-    IntroPage(
-        "Modern HLS oynatıcı",
-        "Yayın tam ekranda başlar. Kaldığın yerden devam eder; bağlantı tazelenir, takılma olursa kendini toparlar."
-    ),
-    IntroPage(
-        "Canlı TV bizim",
-        "Türkiye kanalları en başta. Yayınlar doğrudan oynar; iframe yok, tarayıcı yok. Liste internetten güncellenir."
+        "Filmler, diziler ve canlı TV tek yerde. Kendi oynatıcımız, sade ve hızlı bir arayüz.",
+        "TEK YERDE"
     ),
     IntroPage(
         "Her gün yeni filmler",
-        "Ana ekranda IMDb puanı yüksek filmler döner; fragmanı kendiliğinden açılır. Tüm API bizden, izlemesi sizden."
+        "Ana ekranda IMDb puanı yüksek filmler döner; fragmanı kendiliğinden açılır. Tüm API bizden, izlemesi sizden.",
+        "HER GÜN YENİ"
     ),
     IntroPage(
-        "Hoş geldiniz",
-        "Her şey hazır. NOTFLİX iyi seyirler diler."
+        "Her ekranda çalışır",
+        "TV box, Google TV, akıllı TV, BlueStacks ve telefon. Uzaktan kumanda, air mouse, fare ve dokunmatik desteklenir.",
+        "TV + MOBİL"
+    ),
+    IntroPage(
+        "Modern HLS oynatıcı",
+        "Yayın tam ekranda başlar. Kaldığın yerden devam eder; bağlantı tazelenir, takılma olursa kendini toparlar.",
+        "HLS"
+    ),
+    IntroPage(
+        "Canlı TV bizim",
+        "Türkiye kanalları en başta. Yayınlar doğrudan oynar; iframe yok, tarayıcı yok. Liste internetten güncellenir.",
+        "CANLI TV"
+    ),
+    IntroPage(
+        "Artık hazırsın",
+        "Kumandayla yönet, dokunmatikle kaydır, hepsini tek ekrandan izle. NOTFLİX iyi seyirler diler.",
+        "HAZIR"
     )
 )
 
@@ -132,7 +135,12 @@ fun IntroScreen(onFinish: () -> Unit) {
                     .fillMaxWidth(),
                 beyondViewportPageCount = 1
             ) { index ->
-                IntroPageContent(index = index, modifier = Modifier.fillMaxSize())
+                IntroPageContent(
+                    index = index,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = if (isTvLayout()) 40.dp else 20.dp)
+                )
             }
 
             Row(
@@ -204,11 +212,9 @@ fun IntroScreen(onFinish: () -> Unit) {
 private fun IntroPageContent(index: Int, modifier: Modifier = Modifier) {
     BoxWithConstraints(modifier = modifier) {
         val page = pages[index]
-        val artHeight = (maxHeight * 0.52f).coerceIn(110.dp, 280.dp)
+        val artHeight = (maxHeight * 0.46f).coerceIn(110.dp, 270.dp)
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = if (isTvLayout()) 40.dp else 20.dp),
+            modifier = Modifier.fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
@@ -220,7 +226,23 @@ private fun IntroPageContent(index: Int, modifier: Modifier = Modifier) {
             ) {
                 IntroArt(index = index)
             }
-            Spacer(modifier = Modifier.height(if (isTvLayout()) 28.dp else 14.dp))
+            Spacer(modifier = Modifier.height(if (isTvLayout()) 26.dp else 14.dp))
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(NotflixColors.Accent.copy(alpha = 0.14f))
+                    .border(1.dp, NotflixColors.Accent.copy(alpha = 0.35f), RoundedCornerShape(50))
+                    .padding(horizontal = 12.dp, vertical = 5.dp)
+            ) {
+                Text(
+                    text = page.badge,
+                    color = NotflixColors.AccentSoft,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.4.sp
+                )
+            }
+            Spacer(modifier = Modifier.height(if (isTvLayout()) 14.dp else 10.dp))
             Text(
                 text = page.title,
                 style = if (isTvLayout()) MaterialTheme.typography.displaySmall
@@ -228,13 +250,13 @@ private fun IntroPageContent(index: Int, modifier: Modifier = Modifier) {
                 color = NotflixColors.TextPrimary,
                 textAlign = TextAlign.Center
             )
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(10.dp))
             Text(
                 text = page.text,
                 style = MaterialTheme.typography.bodyMedium,
                 color = NotflixColors.TextSecondary,
                 textAlign = TextAlign.Center,
-                modifier = Modifier.widthIn(max = 560.dp)
+                modifier = Modifier.widthIn(max = 620.dp)
             )
         }
     }
@@ -244,11 +266,10 @@ private fun IntroPageContent(index: Int, modifier: Modifier = Modifier) {
 private fun IntroArt(index: Int) {
     when (index) {
         0 -> WelcomeArt()
-        1 -> DevicesArt()
-        2 -> TouchArt()
+        1 -> DailyArt()
+        2 -> DevicesArt()
         3 -> PlayerArt()
         4 -> LiveArt()
-        5 -> DailyArt()
         else -> FinalArt()
     }
 }

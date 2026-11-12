@@ -9,6 +9,7 @@ import com.notflix.app.data.AppSettings
 import com.notflix.app.data.FilmmoduRepository
 import com.notflix.app.data.LiveTvRepository
 import com.notflix.app.data.UpdateRepository
+import com.notflix.app.data.YouTubeTrailerResolver
 
 class NotflixApplication : Application(), ImageLoaderFactory {
 
@@ -20,6 +21,8 @@ class NotflixApplication : Application(), ImageLoaderFactory {
         private set
     lateinit var updates: UpdateRepository
         private set
+    lateinit var trailers: YouTubeTrailerResolver
+        private set
 
     override fun onCreate() {
         super.onCreate()
@@ -28,6 +31,7 @@ class NotflixApplication : Application(), ImageLoaderFactory {
         content = FilmmoduRepository()
         live = LiveTvRepository(this)
         updates = UpdateRepository()
+        trailers = YouTubeTrailerResolver()
     }
 
     override fun newImageLoader(): ImageLoader = ImageLoader.Builder(this)

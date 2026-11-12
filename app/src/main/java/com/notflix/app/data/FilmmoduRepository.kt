@@ -552,8 +552,15 @@ class FilmmoduRepository {
     }
 
     private fun tmdbGet(url: String): String {
-        val request = Request.Builder().url(url).header("Accept", "application/json").build()
-        tmdbClient.newCall(request).execute().use { response ->
+        // Once API anahtari ile; olmezse okuma erisim jetonu (bearer) ile dener.
+        runCatching { tmdbRequest(url, null) }.getOrNull()?.let { return it }
+        return tmdbRequest(url, TMDB_TOKEN)
+    }
+
+    private fun tmdbRequest(url: String, bearer: String?): String {
+        val builder = Request.Builder().url(url).header("Accept", "application/json")
+        if (!bearer.isNullOrBlank()) builder.header("Authorization", "Bearer $bearer")
+        tmdbClient.newCall(builder.build()).execute().use { response ->
             if (!response.isSuccessful) throw IOException("TMDB HTTP ${response.code}")
             return response.body?.string().orEmpty()
         }
@@ -1015,6 +1022,8 @@ class FilmmoduRepository {
         private const val TAG = "NotflixCatalog"
         private const val BASE = "https://filmmodu.news"
         private const val TMDB_KEY = "21e3ff1da3bd38d1f167560193503c34"
+        private const val TMDB_TOKEN =
+            "eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiIyMWUzZmYxZGEzYmQzOGQxZjE2NzU2MDE5MzUwM2MzNCIsIm5iZiI6MTc5MzQ0MDIxOS4wNjIsInN1YiI6IjZhZTViOWRiZDU4ZTI5MGIxMmM4YWUzOSIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.FxLyGjSG37R3qK1J1S_vyoyL3u3Q-7yVlp56ddPFHzM"
         private const val HERO_SIZE = 24
         private const val USER_AGENT =
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"

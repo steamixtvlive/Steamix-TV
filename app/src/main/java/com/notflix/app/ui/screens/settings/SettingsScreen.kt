@@ -5,6 +5,7 @@ import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -18,7 +19,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -32,6 +37,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -202,26 +209,6 @@ fun SettingsScreen(
                         }
                     )
 ActionRow(
-                        title = "Güncellemeyi denetle",
-                        subtitle = if (updateBusy) "Denetleniyor…" else "Yeni sürüm var mı bakılır.",
-                        busy = updateBusy,
-                        onClick = {
-                            if (!updateBusy) {
-                                updateBusy = true
-                                message = null
-                                scope.launch {
-                                    message = when (val result = app.updates.checkLatest(BuildConfig.VERSION_CODE)) {
-                                        is UpdateResult.UpToDate -> "Uygulama güncel."
-                                        is UpdateResult.Available -> "Yeni sürüm mevcut: ${result.info.versionName}."
-                                        is UpdateResult.Failed -> "Güncelleme denetlenemedi."
-                                        UpdateResult.NotConfigured -> "Güncelleme yapılandırılmamış."
-                                    }
-                                    updateBusy = false
-                                }
-                            }
-                        }
-                    )
-                    ActionRow(
                         title = "Tanıtımı yeniden izle",
                         subtitle = "Baştan oynar.",
                         onClick = onReplayIntro
@@ -229,7 +216,133 @@ ActionRow(
                 }
             }
 
+            item(key = "update-head") { SectionHeader("Güncelleme") }
+            item(key = "update-card") {
+                UpdateCard(
+                    busy = updateBusy,
+                    versionName = BuildConfig.VERSION_NAME,
+                    onCheck = {
+                        if (!updateBusy) {
+                            updateBusy = true
+                            message = null
+                            scope.launch {
+                                message = when (val result = app.updates.checkLatest(BuildConfig.VERSION_CODE)) {
+                                    is UpdateResult.UpToDate -> "Uygulama güncel."
+                                    is UpdateResult.Available -> "Yeni sürüm mevcut: ${result.info.versionName}."
+                                    is UpdateResult.Failed -> "Güncelleme denetlenemedi."
+                                    UpdateResult.NotConfigured -> "Güncelleme yapılandırılmamış."
+                                }
+                                updateBusy = false
+                            }
+                        }
+                    }
+                )
+            }
+
         }
+    }
+}
+
+@Composable
+private fun UpdateCard(
+    busy: Boolean,
+    versionName: String,
+    onCheck: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = screenPadding())
+            .clip(RoundedCornerShape(14.dp))
+            .background(
+                Brush.linearGradient(
+                    listOf(
+                        NotflixColors.Elevated,
+                        NotflixColors.Accent.copy(alpha = 0.10f)
+                    )
+                )
+            )
+            .border(1.dp, NotflixColors.LineSoft, RoundedCornerShape(14.dp))
+            .padding(16.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(42.dp)
+                    .clip(RoundedCornerShape(11.dp))
+                    .background(NotflixColors.Accent.copy(alpha = 0.16f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.Filled.SystemUpdate,
+                    contentDescription = null,
+                    tint = NotflixColors.AccentSoft,
+                    modifier = Modifier.size(22.dp)
+                )
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Uygulama güncellemesi",
+                    color = NotflixColors.TextPrimary,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = "Kurulu sürüm $versionName",
+                    color = NotflixColors.TextMuted,
+                    fontSize = 11.sp
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(14.dp))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(11.dp))
+                .background(if (busy) NotflixColors.Card else NotflixColors.Accent)
+                .clickable(enabled = !busy, onClick = onCheck)
+                .padding(vertical = 13.dp),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (busy) {
+                CircularProgressIndicator(
+                    color = NotflixColors.TextPrimary,
+                    strokeWidth = 2.dp,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(9.dp))
+                Text(
+                    text = "Denetleniyor…",
+                    color = NotflixColors.TextPrimary,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+            } else {
+                Icon(
+                    Icons.Filled.Refresh,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(17.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Güncelleme denetle",
+                    color = Color.White,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(9.dp))
+        Text(
+            text = "Yeni sürüm varsa uygulama yeniden başlatılınca kurulum ekranı açılır.",
+            color = NotflixColors.TextMuted,
+            fontSize = 10.5.sp,
+            lineHeight = 15.sp
+        )
     }
 }
 
