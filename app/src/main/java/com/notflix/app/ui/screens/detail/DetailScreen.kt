@@ -938,7 +938,7 @@ private fun TrailerBackdrop(
             modifier = modifier.alpha(fade),
             factory = { ctx ->
                 WebView(ctx).apply {
-                    setBackgroundColor(android.graphics.Color.BLACK)
+                    setBackgroundColor(android.graphics.Color.TRANSPARENT)
                     setLayerType(android.view.View.LAYER_TYPE_HARDWARE, null)
                     isFocusable = false
                     isFocusableInTouchMode = false
@@ -1044,8 +1044,8 @@ private fun trailerHtml(videoKey: String): String {
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
-html,body{margin:0;padding:0;height:100%;background:#000;overflow:hidden;}
-#wrap{position:absolute;top:0;left:0;width:100%;height:100%;overflow:hidden;background:#000;}
+html,body{margin:0;padding:0;height:100%;background:transparent;overflow:hidden;}
+#wrap{position:absolute;top:0;left:0;width:100%;height:100%;overflow:hidden;background:transparent;}
 #player{position:absolute;top:-9%;left:-9%;width:118%;height:118%;}
 #player iframe{width:100%;height:100%;border:0;}
 </style>
@@ -1089,10 +1089,10 @@ function onYouTubeIframeAPIReady(){
     },
     events:{
       onReady:function(e){
-        applyQuality();
+        
         kick();
         setTimeout(kick,500);
-        setTimeout(applyQuality,1500);
+        
         setTimeout(function(){
           var state=-1;
           try{state=e.target.getPlayerState();}catch(err){}
@@ -1100,7 +1100,7 @@ function onYouTubeIframeAPIReady(){
           if(!retried){
             retried=true;
             try{e.target.loadVideoById('$videoKey');}catch(err){}
-            applyQuality();
+            
             kick();
             setTimeout(function(){
               if(!started) fail('timeout');
@@ -1113,7 +1113,7 @@ function onYouTubeIframeAPIReady(){
       onStateChange:function(e){
         if(!e) return;
         if(e.data===1||e.data===3){
-          applyQuality();
+          
           try{e.target.playVideo();}catch(err){}
           if(e.data===1){
             // Only report success after the decoder is actually advancing.
@@ -1134,7 +1134,7 @@ function onYouTubeIframeAPIReady(){
           retried=true;
           setTimeout(function(){
             try{player.loadVideoById('$videoKey');}catch(err){}
-            applyQuality();
+            
             kick();
           },900);
           return;
