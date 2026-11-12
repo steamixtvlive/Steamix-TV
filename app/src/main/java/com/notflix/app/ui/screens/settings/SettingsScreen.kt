@@ -166,7 +166,7 @@ fun SettingsScreen(
                                 context.startActivity(
                                     Intent(
                                         Intent.ACTION_VIEW,
-                                        Uri.parse("https://steamixlive.onrender.com")
+                                        Uri.parse("https://notflixlive.onrender.com/")
                                     )
                                 )
                             }.onFailure {
@@ -226,11 +226,6 @@ ActionRow(
                 DeveloperCard()
             }
 
-            item(key = "exit-head") { SectionHeader("Uygulama") }
-            item(key = "exit-card") {
-                ExitButton(onClick = onExitApp)
-            }
-
             item(key = "update-head") { SectionHeader("Güncelleme") }
             item(key = "update-card") {
                 UpdateCard(
@@ -252,6 +247,11 @@ ActionRow(
                         }
                     }
                 )
+            }
+
+            item(key = "exit-head") { SectionHeader("Uygulama") }
+            item(key = "exit-card") {
+                ExitButton(onClick = onExitApp)
             }
 
         }
@@ -485,46 +485,37 @@ private fun ToggleRow(
 @Composable
 private fun ExitButton(onClick: () -> Unit) {
     var focused by remember { mutableStateOf(false) }
-    val shape = RoundedCornerShape(12.dp)
+    val shape = RoundedCornerShape(10.dp)
     Row(
         modifier = Modifier
-            .fillMaxWidth()
             .padding(horizontal = screenPadding())
-            .heightIn(min = if (isTvLayout()) 62.dp else 56.dp)
+            .heightIn(min = if (isTvLayout()) 46.dp else 42.dp)
             .clip(shape)
-            .background(if (focused) Color(0xFFD32F2F) else Color(0xFF8E1B1B))
+            .background(if (focused) Color(0xFF551B1F) else Color(0xFF331316))
             .border(
-                width = if (focused) 2.dp else 1.dp,
-                color = if (focused) Color.White else Color(0xFFFFB4B4).copy(alpha = 0.45f),
+                width = 1.dp,
+                color = if (focused) Color(0xFFE07A7F) else Color(0xFF5E2A2E),
                 shape = shape
             )
             .focusBringIntoView()
             .onFocusChanged { focused = it.isFocused }
             .clickable(onClick = onClick)
-            .padding(horizontal = 18.dp, vertical = 12.dp),
+            .padding(horizontal = 16.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
             Icons.Filled.ExitToApp,
             contentDescription = null,
-            tint = Color.White,
-            modifier = Modifier.size(23.dp)
+            tint = Color(0xFFFFC9C9),
+            modifier = Modifier.size(17.dp)
         )
-        Spacer(modifier = Modifier.width(12.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = "Uygulamadan çık",
-                color = Color.White,
-                fontSize = if (isTvLayout()) 16.sp else 15.sp,
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = "NOTFLİX tamamen kapanır.",
-                color = Color(0xFFFFD9D9),
-                fontSize = 11.sp
-            )
-        }
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = "Çıkış Yap",
+            color = Color(0xFFFBE4E4),
+            fontSize = if (isTvLayout()) 14.5.sp else 13.5.sp,
+            fontWeight = FontWeight.SemiBold
+        )
     }
 }
 

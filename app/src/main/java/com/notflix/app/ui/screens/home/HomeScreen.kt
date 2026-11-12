@@ -46,7 +46,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -159,6 +166,7 @@ private fun HomeContent(
     val context = LocalContext.current
     val app = context.applicationContext as NotflixApplication
     var heroFocused by remember { mutableStateOf(false) }
+    val heroPlayFocus = remember { FocusRequester() }
     val resumeEntries = remember(data) {
         app.settings.watchHistory()
             .groupBy { it.seriesKey }
@@ -179,7 +187,29 @@ private fun HomeContent(
         }
     }
 
-    LazyColumn(modifier = Modifier.fillMaxSize(), state = listState) {
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .onPreviewKeyEvent { event ->
+                // Sayfa yukari kaydirilirken odak once hero slaytina gelsin;
+                // hero zaten seciliyse tus normal akista nav sekmelerine gecer.
+                if (event.type == KeyEventType.KeyDown &&
+                    event.key == Key.DirectionUp &&
+                    !heroFocused &&
+                    listState.firstVisibleItemIndex == 0 &&
+                    hero.isNotEmpty()
+                ) {
+                    val moved = runCatching { heroPlayFocus.requestFocus() }.isSuccess
+                    if (moved) {
+                        scope.launch { listState.animateScrollToItem(0) }
+                    }
+                    moved
+                } else {
+                    false
+                }
+            },
+        state = listState
+    ) {
         item(key = "hero") {
             BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
                 val tv = isTvLayout()
@@ -198,7 +228,8 @@ private fun HomeContent(
                             slide = hero[page],
                             onPlay = { onPlay(hero[page].url, hero[page].title) },
                             onDetail = { onOpenDetail(hero[page].url, hero[page].title) },
-                            onHeroFocus = { heroFocused = it }
+                            onHeroFocus = { heroFocused = it },
+                            playFocus = if (page == pagerState.currentPage) heroPlayFocus else null
                         )
                     }
                     if (hero.size > 1) {
@@ -450,7 +481,8 @@ private fun HeroPanel(
     slide: HeroSlide,
     onPlay: () -> Unit,
     onDetail: () -> Unit,
-    onHeroFocus: (Boolean) -> Unit
+    onHeroFocus: (Boolean) -> Unit,
+    playFocus: FocusRequester? = null
 ) {
     val tv = isTvLayout()
     val context = LocalContext.current
@@ -614,7 +646,9 @@ private fun HeroPanel(
                     text = "İzle",
                     icon = Icons.Filled.PlayArrow,
                     onClick = onPlay,
-                    modifier = Modifier.onFocusChanged { onHeroFocus(it.hasFocus) }
+                    modifier = Modifier
+                        .then(if (playFocus != null) Modifier.focusRequester(playFocus) else Modifier)
+                        .onFocusChanged { onHeroFocus(it.hasFocus) }
                 )
                 NotflixButton(
                     text = "Detaylar",

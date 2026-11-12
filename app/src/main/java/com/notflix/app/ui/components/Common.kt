@@ -457,9 +457,9 @@ fun PosterCard(
                 .clip(shape)
                 .background(NotflixColors.Card)
                 .border(
-                    // Odak vurgusu koyu ve net olsun: secilen oge anlasilsin.
+                    // Odak vurgusu kirmizi ve net olsun: secilen poster hemen anlasilsin.
                     width = if (focused) 3.dp else 1.dp,
-                    color = if (focused) Color.White else Color.White.copy(alpha = 0.08f),
+                    color = if (focused) NotflixColors.Accent else Color.White.copy(alpha = 0.08f),
                     shape = shape
                 )
         ) {
