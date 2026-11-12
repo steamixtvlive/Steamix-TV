@@ -939,6 +939,7 @@ private fun TrailerBackdrop(
             factory = { ctx ->
                 WebView(ctx).apply {
                     setBackgroundColor(android.graphics.Color.BLACK)
+                    setLayerType(android.view.View.LAYER_TYPE_HARDWARE, null)
                     isFocusable = false
                     isFocusableInTouchMode = false
                     isClickable = false
@@ -951,6 +952,9 @@ private fun TrailerBackdrop(
                     settings.loadsImagesAutomatically = true
                     settings.cacheMode = android.webkit.WebSettings.LOAD_DEFAULT
                     settings.setSupportMultipleWindows(false)
+                    settings.useWideViewPort = true
+                    settings.loadWithOverviewMode = true
+                    webChromeClient = android.webkit.WebChromeClient()
                     webViewClient = object : WebViewClient() {
                         override fun onReceivedError(
                             view: WebView,
