@@ -1,4 +1,4 @@
-﻿package com.notflix.app.ui.screens.player
+package com.notflix.app.ui.screens.player
 
 import android.app.Activity
 import android.content.Context
@@ -173,7 +173,8 @@ fun PlayerScreen(
             .setSeekForwardIncrementMs(10_000)
             .build()
             .apply {
-                setHandleAudioBecomingNoisy(true)
+                // Canli yayinda odak baska yere gecse de ses kesilmemeli.
+                setHandleAudioBecomingNoisy(false)
                 setWakeMode(C.WAKE_MODE_NETWORK)
                 playWhenReady = true
             }
@@ -195,7 +196,6 @@ fun PlayerScreen(
     var controlsVisible by remember { mutableStateOf(true) }
     var qualityOpen by remember { mutableStateOf(false) }
     var panelOpen by remember { mutableStateOf(false) }
-    var aspectOpen by remember { mutableStateOf(false) }
     var aspect by remember { mutableStateOf(if (isLive) app.settings.playerAspect else "fit") }
     var aspectNotice by remember { mutableStateOf<String?>(null) }
     var playerView by remember { mutableStateOf<PlayerView?>(null) }
@@ -224,7 +224,6 @@ fun PlayerScreen(
     BackHandler {
         when {
             qualityOpen -> qualityOpen = false
-            aspectOpen -> aspectOpen = false
             panelOpen -> panelOpen = false
             else -> onBack()
         }
@@ -434,10 +433,8 @@ fun PlayerScreen(
         }
     }
 
-    LaunchedEffect(controlsVisible, isPlaying, dragging, qualityOpen, panelOpen, aspectOpen) {
-        if (controlsVisible && isPlaying && !dragging && !qualityOpen && !panelOpen &&
-            !aspectOpen
-        ) {
+    LaunchedEffect(controlsVisible, isPlaying, dragging, qualityOpen, panelOpen) {
+        if (controlsVisible && isPlaying && !dragging && !qualityOpen && !panelOpen) {
             delay(2_500)
             controlsVisible = false
             runCatching { focusRequester.requestFocus() }
@@ -449,10 +446,19 @@ fun PlayerScreen(
         runCatching { focusRequester.requestFocus() }
     }
 
+    // Kontroller gizlendiginde odak ana kutuya doner; boylece tam ekran
+    // modunda yukarı/asagi ile kanal degistirilebilir.
+    LaunchedEffect(controlsVisible) {
+        if (!controlsVisible) {
+            delay(90)
+            runCatching { focusRequester.requestFocus() }
+        }
+    }
+
     // Kontroller gorunurken odak kontrol dugmelerine gider; boylece kumanda
     // ile oynat/ses/kalite/en-boy arasinda gezinilebilir.
-    LaunchedEffect(controlsVisible, panelOpen, qualityOpen, aspectOpen) {
-        if (!controlsVisible || panelOpen || qualityOpen || aspectOpen) return@LaunchedEffect
+    LaunchedEffect(controlsVisible, panelOpen, qualityOpen) {
+        if (!controlsVisible || panelOpen || qualityOpen) return@LaunchedEffect
         delay(120)
         runCatching { controlsFocus.requestFocus() }
     }
@@ -481,8 +487,8 @@ fun PlayerScreen(
         }
     }
 
-    LaunchedEffect(aspectOpen, qualityOpen) {
-        if (aspectOpen || qualityOpen) {
+    LaunchedEffect(qualityOpen) {
+        if (qualityOpen) {
             controlsVisible = false
             delay(120)
             // Odak diger bir dugmede kalmis olabilir; modalin ilk ogesine al.
@@ -532,7 +538,12 @@ fun PlayerScreen(
     fun zap(delta: Int) {
         if (!isLive || channels.size < 2) return
         index = (index + delta + channels.size) % channels.size
-        controlsVisible = true
+        // Tam ekran modunda kanal degistirirken kontroller gizli kalsin.
+        if (controlsVisible) {
+            controlsVisible = true
+        } else {
+            runCatching { focusRequester.requestFocus() }
+        }
     }
 
     fun changeVolume(delta: Float) {
@@ -584,6 +595,19 @@ fun PlayerScreen(
         }
     }
 
+    /**
+     * En-boy oranı düğmesi: modal açmadan sıradaki orana geçer
+     * (Sığdır → Doldur → Kırp → Sığdır).
+     */
+    fun cycleAspect() {
+        val next = when (aspect) {
+            "fit" -> "fill"
+            "fill" -> "zoom"
+            else -> "fit"
+        }
+        applyAspect(next)
+    }
+
     LaunchedEffect(playerView, aspect) {
         playerView?.resizeMode = resizeModeFor(aspect)
     }
@@ -616,14 +640,13 @@ fun PlayerScreen(
                 if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                 if (errorText != null) return@onPreviewKeyEvent false
                 // Panel acikken kumanda panelin icinde gezinir; GERI/ESC kapatir.
-                if (panelOpen || qualityOpen || aspectOpen) {
+                if (panelOpen || qualityOpen) {
                     val native = event.nativeKeyEvent
                     if (native.keyCode == android.view.KeyEvent.KEYCODE_BACK ||
                         native.keyCode == android.view.KeyEvent.KEYCODE_ESCAPE
                     ) {
                         panelOpen = false
                         qualityOpen = false
-                        aspectOpen = false
                         true
                     } else {
                         false
@@ -634,7 +657,7 @@ fun PlayerScreen(
             }
             .onKeyEvent { event ->
                 if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
-                if (panelOpen || qualityOpen || aspectOpen) return@onKeyEvent false
+                if (panelOpen || qualityOpen) return@onKeyEvent false
                 if (errorText != null) return@onKeyEvent false
                 when (event.key) {
                     // Tam ekran modu (kontroller gizliyken): yukarı/asagi kanal
@@ -914,7 +937,7 @@ fun PlayerScreen(
                             contentDescription = "En-boy oranı",
                             size = if (isTv) 38.dp else 34.dp,
                             filled = false,
-                            onClick = { aspectOpen = true }
+                            onClick = { cycleAspect() }
                         )
                     }
                 }
@@ -993,17 +1016,6 @@ fun PlayerScreen(
                 selected = qualityHeight,
                 onSelect = { applyQuality(it) },
                 onClose = { qualityOpen = false }
-            )
-        }
-
-        if (aspectOpen) {
-            AspectPanel(
-                selected = aspect,
-                onSelect = {
-                    applyAspect(it)
-                    aspectOpen = false
-                },
-                onClose = { aspectOpen = false }
             )
         }
 
@@ -1397,114 +1409,6 @@ private fun heightLabel(height: Int): String = if (height >= 2160) "4K" else "${
 
 private fun qualityLabel(height: Int?): String =
     if (height == null) "Otomatik" else heightLabel(height)
-
-@Composable
-private fun AspectPanel(
-    selected: String,
-    onSelect: (String) -> Unit,
-    onClose: () -> Unit
-) {
-    val options = listOf(
-        Triple("fit", "Sığdır", "16:9 · tamamı görünür, kenarlar siyah"),
-        Triple("fill", "Doldur", "Ekranı kaplar, hafif esneme olabilir"),
-        Triple("zoom", "Kırp", "Ekranı kaplar, kenarlardan kırpar")
-    )
-    val firstRowFocus = remember { FocusRequester() }
-    LaunchedEffect(Unit) {
-        delay(90)
-        runCatching { firstRowFocus.requestFocus() }
-    }
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.55f))
-            .clickable(onClick = onClose),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(
-            modifier = Modifier
-                .width(300.dp)
-                .clip(RoundedCornerShape(14.dp))
-                .background(NotflixColors.Elevated)
-                .border(1.dp, NotflixColors.Line, RoundedCornerShape(14.dp))
-                .padding(vertical = 10.dp)
-                .clickable(enabled = false) {}
-        ) {
-            Text(
-                text = "Ekran ölçeği",
-                color = NotflixColors.TextPrimary,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-            )
-            options.forEachIndexed { index, (value, label, hint) ->
-                AspectRow(
-                    modifier = if (index == 0) Modifier.focusRequester(firstRowFocus) else Modifier,
-                    label = label,
-                    hint = hint,
-                    selected = selected == value,
-                    onClick = { onSelect(value) }
-                )
-            }
-            Text(
-                text = "Seçimin cihazında hatırlanır.",
-                color = NotflixColors.TextMuted,
-                fontSize = 10.sp,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
-            )
-        }
-    }
-}
-
-@Composable
-private fun AspectRow(
-    label: String,
-    hint: String,
-    selected: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    var focused by remember { mutableStateOf(false) }
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 8.dp, vertical = 2.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .background(
-                when {
-                    focused -> Color.White.copy(alpha = 0.10f)
-                    selected -> NotflixColors.Accent.copy(alpha = 0.18f)
-                    else -> Color.Transparent
-                }
-            )
-            .onFocusChanged { focused = it.isFocused }
-            .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 9.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = label,
-                color = if (selected || focused) Color.White else NotflixColors.TextSecondary,
-                fontSize = 13.sp,
-                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium
-            )
-            Text(
-                text = hint,
-                color = NotflixColors.TextMuted,
-                fontSize = 10.sp
-            )
-        }
-        if (selected) {
-            Text(
-                text = "✓",
-                color = NotflixColors.AccentSoft,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Bold
-            )
-        }
-    }
-}
 
 @Composable
 private fun QualityPanel(
