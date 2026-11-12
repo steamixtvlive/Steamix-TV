@@ -446,12 +446,14 @@ fun PlayerScreen(
         runCatching { focusRequester.requestFocus() }
     }
 
-    // Kontroller gizlendiginde odak ana kutuya doner; boylece tam ekran
-    // modunda yukarı/asagi ile kanal degistirilebilir.
+    // Kontroller gizlendiginde odak ana kutuda kalmali; boylece kumandada
+    // her tus (ok/ok tusu) tekrar calisir ve kontroller geri gelir.
     LaunchedEffect(controlsVisible) {
         if (!controlsVisible) {
-            delay(90)
-            runCatching { focusRequester.requestFocus() }
+            while (isActive) {
+                delay(250)
+                runCatching { focusRequester.requestFocus() }
+            }
         }
     }
 
@@ -659,6 +661,29 @@ fun PlayerScreen(
                 if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
                 if (panelOpen || qualityOpen) return@onKeyEvent false
                 if (errorText != null) return@onKeyEvent false
+                // Ozel kumanda tuslariyla kanal gecisi (kanal yukarı/asagi,
+                // medya next/previous) — kumandasinda ozel tus varsa calisir.
+                val native = event.nativeKeyEvent
+                if (isLive && channels.size > 1) {
+                    when (native.keyCode) {
+                        android.view.KeyEvent.KEYCODE_CHANNEL_UP -> {
+                            zap(1)
+                            true
+                        }
+                        android.view.KeyEvent.KEYCODE_CHANNEL_DOWN -> {
+                            zap(-1)
+                            true
+                        }
+                        android.view.KeyEvent.KEYCODE_MEDIA_NEXT -> {
+                            zap(1)
+                            true
+                        }
+                        android.view.KeyEvent.KEYCODE_MEDIA_PREVIOUS -> {
+                            zap(-1)
+                            true
+                        }
+                    }
+                }
                 when (event.key) {
                     // Tam ekran modu (kontroller gizliyken): yukarı/asagi kanal
                     // degistirir, sag ok kanal listesini acar.
@@ -681,6 +706,23 @@ fun PlayerScreen(
                     Key.DirectionRight -> {
                         if (!controlsVisible && isLive && channels.size > 1) {
                             openChannelPanel()
+                            true
+                        } else {
+                            false
+                        }
+                    }
+                    // Kontroller gizliyken OK/merkez tusu kontrolleri geri getirir.
+                    Key.DirectionCenter, Key.Enter, Key.Spacebar -> {
+                        if (!controlsVisible) {
+                            controlsVisible = true
+                            true
+                        } else {
+                            false
+                        }
+                    }
+                    Key.DirectionLeft -> {
+                        if (!controlsVisible) {
+                            controlsVisible = true
                             true
                         } else {
                             false
