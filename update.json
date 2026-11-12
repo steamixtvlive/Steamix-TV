@@ -1,6 +1,6 @@
 {
-  "versionCode": 4,
-  "versionName": "1.0.0",
+  "versionCode": 5,
+  "versionName": "1.0.1",
   "apkUrl": "https://github.com/steamixtvlive/Steamix-TV/releases/latest/download/notflix.apk",
-  "notes": "Nav sekmeleri TV'de sığmadığında kaydırma okları eklendi. Canlı TV oynatıcı kontrolleri kumandayla kullanılabilir oldu, sağ ok kanal listesini açıyor, ESC/Geri paneli kapatıyor. Kanal adı ekranın tam ortasında (logosuz) gösteriliyor. Detay ekranında yukarı tuşu sayfayı kaydırıyor, fragman sesi kendiliğinden kapanmıyor. Ayarlara Geliştirici RENDIR MEDİA bilgi bölümü eklendi."
+  "notes": "Canlı TV oynatıcıda kumanda/klavye tuşları artık odaktan bağımsız çalışıyor: kontroller gizlenince odak kaybolmuyor, yukarı/aşağı ile kanal değişiyor, sağ ok kanal listesini açıyor, OK tuşu kontrolleri geri getiriyor. Özel kanal tuşları (kanal yukarı/aşağı, medya ileri/geri) destekleniyor. En-boy oranı düğmesi modal açmadan doğrudan değişiyor. Fragman sesi kendiliğinden kapanmıyor. Detay ekranında yukarı tuşu sayfayı kaydırıyor, odak göstergesi düzeldi."
 }

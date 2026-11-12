@@ -452,8 +452,9 @@ fun PlayerScreen(
 
     // Kontroller gizlendiginde odak ana kutuda kalmali; boylece kumandada
     // her tus (ok/ok tusu) tekrar calisir ve kontroller geri gelir.
-    LaunchedEffect(controlsVisible) {
-        if (!controlsVisible) {
+    // Panel/kalite acikken odagi onlardan almamaliyiz.
+    LaunchedEffect(controlsVisible, panelOpen, qualityOpen) {
+        if (!controlsVisible && !panelOpen && !qualityOpen) {
             while (isActive) {
                 delay(250)
                 runCatching { focusRequester.requestFocus() }
@@ -469,27 +470,14 @@ fun PlayerScreen(
         runCatching { controlsFocus.requestFocus() }
     }
 
+    // Panel acildiginda odak kanal listesine gider ve panel kapaliyken
+    // kontroller gizli kalir (tam ekran modu korunur).
     LaunchedEffect(panelOpen) {
         if (panelOpen) {
             controlsVisible = false
             delay(90)
             // Odak fare ile bir dugmede kalmis olabilir; liste basina zorla.
             runCatching { panelFocus.requestFocus() }
-        } else {
-            controlsVisible = true
-        }
-    }
-
-    // Panel/kalite/en-boy modali acildiginda odak modalin ilk ogesine gider;
-    // boylece kumanda ile modal icinde secim yapilabilir.
-    LaunchedEffect(panelOpen) {
-        if (panelOpen) {
-            controlsVisible = false
-            delay(90)
-            // Odak fare ile bir dugmede kalmis olabilir; liste basina zorla.
-            runCatching { panelFocus.requestFocus() }
-        } else {
-            controlsVisible = true
         }
     }
 
@@ -1124,6 +1112,8 @@ fun PlayerScreen(
                 focusRequester = panelFocus,
                 onSelect = { selected ->
                     index = selected
+                    // Kanal secildi: panel kapansin, tam ekrana don.
+                    panelOpen = false
                 },
                 onClose = { panelOpen = false }
             )
@@ -1313,16 +1303,20 @@ private fun ChannelPanel(
         }
     }
     val selectedPos = filtered.indexOfFirst { it.index == currentIndex }.coerceAtLeast(0)
-    val focusIndex = filtered.getOrNull(selectedPos)?.index
+    // Odak her zaman bir kanalda olsun: oynayan kanal listede yoksa ilk oge.
+    val focusPos = if (selectedPos in filtered.indices) selectedPos else 0
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = selectedPos)
     LaunchedEffect(selectedPos, group, needle) {
         runCatching { listState.scrollToItem(selectedPos) }
     }
     // Panel acildiginda odak dogrudan kanal listesinde olsun (arama alaninda degil),
-    // boylece kumanda ile kanallar arasinda gezinebilirsin.
-    LaunchedEffect(Unit) {
-        delay(120)
-        runCatching { focusRequester.requestFocus() }
+    // boylece kumanda ile kanallar arasinda gezinebilirsin. Ogeler LazyColumn
+    // icinde geci olusabildigi icin birkac kez denenir.
+    LaunchedEffect(filtered.size, group, needle) {
+        repeat(5) {
+            delay(120)
+            runCatching { focusRequester.requestFocus() }
+        }
     }
     Box(
         modifier = Modifier
@@ -1426,7 +1420,7 @@ private fun ChannelPanel(
             }
             Spacer(modifier = Modifier.height(8.dp))
             LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
-                itemsIndexed(filtered, key = { _, entry -> entry.value.name + entry.value.url }) { _, entry ->
+                itemsIndexed(filtered, key = { _, entry -> entry.value.name + entry.value.url }) { pos, entry ->
                     val idx = entry.index
                     val item = entry.value
                     val selected = idx == currentIndex
@@ -1452,7 +1446,7 @@ private fun ChannelPanel(
                                 },
                                 RoundedCornerShape(8.dp)
                             )
-                            .then(if (idx == focusIndex) Modifier.focusRequester(focusRequester) else Modifier)
+                            .then(if (pos == focusPos) Modifier.focusRequester(focusRequester) else Modifier)
                             // Kumandayla (D-pad) secilebilmesi icin focus alabilir olmali.
                             .onFocusChanged { focused = it.isFocused }
                             .clickable { onSelect(idx) }
