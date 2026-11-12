@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.itemsIndexed
@@ -63,11 +64,11 @@ fun CollectionScreen(
     title: String,
     onBack: () -> Unit,
     onItemClick: (MediaCard) -> Unit,
-    moreUrl: String = ""
+    moreUrl: String = "",
+    gridState: LazyGridState = rememberLazyGridState()
 ) {
     val context = LocalContext.current
     val app = context.applicationContext as NotflixApplication
-    val gridState = rememberLazyGridState()
     val firstFocus = remember { FocusRequester() }
     val scope = rememberCoroutineScope()
 

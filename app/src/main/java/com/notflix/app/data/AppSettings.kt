@@ -84,6 +84,28 @@ class AppSettings(context: Context) {
         persistFavorites(favorites().filterNot { it.url == url })
     }
 
+    /* ---------------- Canli TV favorileri ---------------- */
+
+    fun liveFavorites(): List<String> = runCatching {
+        val array = JSONArray(prefs.getString(KEY_LIVE_FAVORITES, "[]") ?: "[]")
+        (0 until array.length()).mapNotNull { index ->
+            array.optString(index).takeIf { it.isNotBlank() }
+        }
+    }.getOrDefault(emptyList())
+
+    fun isLiveFavorite(url: String): Boolean = liveFavorites().any { it == url }
+
+    /** @return true eklendiyse, false kaldirildiysa. */
+    fun toggleLiveFavorite(url: String): Boolean {
+        val current = liveFavorites().toMutableList()
+        val added = current.none { it == url }
+        if (added) current.add(0, url) else current.removeAll { it == url }
+        val array = JSONArray()
+        current.forEach { array.put(it) }
+        prefs.edit().putString(KEY_LIVE_FAVORITES, array.toString()).apply()
+        return added
+    }
+
     private fun persistFavorites(items: List<MediaCard>) {
         val array = JSONArray()
         items.forEach { card ->
@@ -168,5 +190,6 @@ class AppSettings(context: Context) {
         const val KEY_ASPECT = "player_aspect"
         const val KEY_LIBRARY = "library_items"
         const val KEY_WATCH = "watch_entries"
+        const val KEY_LIVE_FAVORITES = "live_favorites"
     }
 }

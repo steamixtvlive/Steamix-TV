@@ -46,6 +46,8 @@ import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.PlayArrow
@@ -243,7 +245,9 @@ private fun TopTab(label: String, selected: Boolean, onClick: () -> Unit) {
         targetValue = when {
             selected -> NotflixColors.AccentSoft
             focused -> Color.White
-            else -> NotflixColors.TextSecondary
+            // Secili olmayan sekmeler mat gri: secili (kirmizi) ve odakli
+            // (beyaz) olanlardan hemen ayirt edilebilsin.
+            else -> NotflixColors.TextMuted
         },
         label = "tabColor"
     )
@@ -634,7 +638,9 @@ fun LiveChannelCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     fillCell: Boolean = false,
-    nowMs: Long = 0L
+    nowMs: Long = 0L,
+    favorite: Boolean = false,
+    onToggleFavorite: (() -> Unit)? = null
 ) {
     var focused by remember { mutableStateOf(false) }
     val program = remember(channel, nowMs) {
@@ -710,6 +716,26 @@ fun LiveChannelCard(
                         contentDescription = null,
                         tint = Color.White,
                         modifier = Modifier.size(17.dp)
+                    )
+                }
+            }
+            if (onToggleFavorite != null) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(6.dp)
+                        .size(if (isTvLayout()) 30.dp else 26.dp)
+                        .clip(CircleShape)
+                        .background(Color.Black.copy(alpha = 0.55f))
+                        .border(1.dp, if (favorite) NotflixColors.Accent else Color.White.copy(alpha = 0.18f), CircleShape)
+                        .clickable { onToggleFavorite() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = if (favorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                        contentDescription = if (favorite) "Favorilerden çıkar" else "Favorilere ekle",
+                        tint = if (favorite) NotflixColors.Accent else Color.White.copy(alpha = 0.75f),
+                        modifier = Modifier.size(if (isTvLayout()) 17.dp else 15.dp)
                     )
                 }
             }

@@ -90,17 +90,21 @@ fun TrailerPlayer(
             view.visibility = if (isVisible) View.VISIBLE else View.INVISIBLE
         },
         onRelease = { view ->
-            view.removeJavascriptInterface("Android")
-            view.stopLoading()
-            view.loadUrl("about:blank")
-            view.destroy()
+            // WebView yalnizca bir kez yok edilir. Once parent'tan cikarilir,
+            // aksi halde "destroy" cagrisi cokmus (crash) olur.
             webView = null
+            runCatching {
+                view.removeJavascriptInterface("Android")
+                view.stopLoading()
+                (view.parent as? android.view.ViewGroup)?.removeView(view)
+                view.destroy()
+            }
         }
     )
 
     DisposableEffect(videoKey) {
         onDispose {
-            webView?.post { webView?.destroy() }
+            // onRelease zaten yok etti; burada sadece referansi birak.
             webView = null
         }
     }

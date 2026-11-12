@@ -16,7 +16,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.items
@@ -76,7 +78,12 @@ import kotlinx.coroutines.launch
 @Composable
 fun LiveScreen(
     onChannelClick: (LiveChannel) -> Unit,
-    onChannelsLoaded: (List<LiveChannel>) -> Unit = {}
+    onChannelsLoaded: (List<LiveChannel>) -> Unit = {},
+    gridState: LazyGridState = rememberLazyGridState(),
+    initialGroup: String? = null,
+    onGroupChange: (String) -> Unit = {},
+    favoriteUrls: Set<String> = emptySet(),
+    onToggleFavorite: (LiveChannel) -> Unit = {}
 ) {
     val context = LocalContext.current
     val app = context.applicationContext as NotflixApplication
@@ -86,7 +93,9 @@ fun LiveScreen(
     var loading by remember { mutableStateOf(true) }
     var refreshing by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
-    var selectedGroup by remember { mutableStateOf("Tümü") }
+    var selectedGroup by remember(initialGroup) {
+        mutableStateOf(initialGroup ?: "Tümü")
+    }
     var query by remember { mutableStateOf("") }
     var reloadTick by remember { mutableIntStateOf(0) }
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
@@ -128,13 +137,22 @@ fun LiveScreen(
         channels.groupingBy { it.group }.eachCount()
     }
     val needle = remember(query) { searchKey(query.trim()) }
-    val visible = remember(channels, selectedGroup, needle) {
+    val visible = remember(channels, selectedGroup, needle, favoriteUrls) {
         channels.filter { channel ->
-            val inGroup = selectedGroup == "Tümü" || channel.group == selectedGroup
+            val inGroup = when (selectedGroup) {
+                "Tümü" -> true
+                "Favoriler" -> channel.url in favoriteUrls
+                else -> channel.group == selectedGroup
+            }
             inGroup && (needle.length < 2 ||
                 searchKey(channel.name).contains(needle) ||
                 searchKey(channel.group).contains(needle))
         }
+    }
+    // Favori kategorisi her zaman en basta gorunsun.
+    val chipGroups = remember(groups, favoriteUrls) {
+        val withFavorites = if (favoriteUrls.isEmpty()) groups else listOf("Favoriler") + groups
+        withFavorites
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -254,17 +272,24 @@ fun LiveScreen(
 
         Spacer(modifier = Modifier.height(10.dp))
 
-        if (groups.size > 1) {
+        if (chipGroups.size > 1) {
             LazyRow(
                 contentPadding = PaddingValues(horizontal = screenPadding()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                itemsIndexed(groups, key = { _, group -> group }) { index, group ->
-                    val count = if (group == "Tümü") channels.size else counts[group] ?: 0
+                itemsIndexed(chipGroups, key = { _, group -> group }) { index, group ->
+                    val count = when (group) {
+                        "Tümü" -> channels.size
+                        "Favoriler" -> favoriteUrls.size
+                        else -> counts[group] ?: 0
+                    }
                     FilterChip(
                         label = "$group ($count)",
                         selected = group == selectedGroup,
-                        onClick = { selectedGroup = group },
+                        onClick = {
+                            selectedGroup = group
+                            onGroupChange(group)
+                        },
                         modifier = if (index == 0) Modifier.focusRequester(firstChipFocus) else Modifier
                     )
                 }
@@ -291,6 +316,7 @@ fun LiveScreen(
                 )
                 else -> LazyVerticalGrid(
                     columns = GridCells.Adaptive(if (isTvLayout()) 170.dp else 138.dp),
+                    state = gridState,
                     modifier = Modifier.fillMaxSize().focusGroup(),
                     contentPadding = PaddingValues(
                         start = screenPadding(),
@@ -307,6 +333,8 @@ fun LiveScreen(
                             onClick = { onChannelClick(channel) },
                             fillCell = true,
                             nowMs = now,
+                            favorite = channel.url in favoriteUrls,
+                            onToggleFavorite = { onToggleFavorite(channel) },
                             modifier = if (index == 0) Modifier.focusRequester(firstFocus) else Modifier
                         )
                     }

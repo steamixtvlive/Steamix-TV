@@ -1,6 +1,6 @@
 {
-  "versionCode": 5,
-  "versionName": "1.0.1",
+  "versionCode": 6,
+  "versionName": "1.0.2",
   "apkUrl": "https://github.com/steamixtvlive/Steamix-TV/releases/latest/download/notflix.apk",
-  "notes": "Canlı TV oynatıcıda kumanda/klavye tuşları artık odaktan bağımsız çalışıyor: kontroller gizlenince odak kaybolmuyor, yukarı/aşağı ile kanal değişiyor, sağ ok kanal listesini açıyor, OK tuşu kontrolleri geri getiriyor. Özel kanal tuşları (kanal yukarı/aşağı, medya ileri/geri) destekleniyor. En-boy oranı düğmesi modal açmadan doğrudan değişiyor. Fragman sesi kendiliğinden kapanmıyor. Detay ekranında yukarı tuşu sayfayı kaydırıyor, odak göstergesi düzeldi."
+  "notes": "Düzeltmeler: uygulamadan çıkış artık temiz (Ayarlar → Uygulamadan çık, ana ekranda geri tuşu uygulamayı arka plana alır) ve çıkışta oynatıcı/fragman çökmesi giderildi. Film, dizi ve kanal listelerinde geri dönüldüğünde kaydırma konumu, seçili kategori (örn. Belgesel) ve odak yerinde kalır. Canlı TV'ye favoriler eklendi (kalp ikonu + Favoriler kategorisi). Oynatıcıda menü/kontroller kumandayla gezinirken kaybolmuyor, sadece hareketsizlikte kapanıyor. Ana sayfadaki 'Devam Et' öğeleri tek tek silinebiliyor. Üst menüde seçili olmayan sekmeler ayırt edilebilir renkte. Detay ekranındaki fragman normal hızda ve kırpılmadan oynuyor."
 }

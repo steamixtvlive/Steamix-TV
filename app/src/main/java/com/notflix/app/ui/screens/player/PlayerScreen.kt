@@ -195,6 +195,9 @@ fun PlayerScreen(
     var dragging by remember { mutableStateOf(false) }
     var dragValue by remember { mutableFloatStateOf(0f) }
     var controlsVisible by remember { mutableStateOf(true) }
+    // Kumandada her tus hareketi bu sayaci artirir (kontrollerin gizlenme
+    // sayacini sifirlar).
+    var controlsTick by remember { mutableIntStateOf(0) }
     var qualityOpen by remember { mutableStateOf(false) }
     var panelOpen by remember { mutableStateOf(false) }
     var aspect by remember { mutableStateOf(if (isLive) app.settings.playerAspect else "fit") }
@@ -437,9 +440,11 @@ fun PlayerScreen(
     // Kontroller bir süre kullanılmazsa gizlenir (tam ekran modu).
     // Canlı yayında oynatma durumu beklenmez; kanal değişimi de tam ekranda
     // çalışsın diye canlıda da otomatik gizlenir.
-    LaunchedEffect(controlsVisible, isPlaying, dragging, qualityOpen, panelOpen, isLive) {
+    // controlsTick: kumandada her hareket sayacı sıfırlar; böylece menü
+    // gezinirken kaybolmaz, sadece hareketsizlikte kapanır.
+    LaunchedEffect(controlsVisible, isPlaying, dragging, qualityOpen, panelOpen, isLive, controlsTick) {
         if (controlsVisible && (isPlaying || isLive) && !dragging && !qualityOpen && !panelOpen) {
-            delay(2_500)
+            delay(4_000)
             controlsVisible = false
             runCatching { focusRequester.requestFocus() }
         }
@@ -705,6 +710,8 @@ fun PlayerScreen(
             .focusable()
             .onPreviewKeyEvent { event ->
                 if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                // Her kumanda hareketi otomatik gizlenme sayacini sifirlar.
+                controlsTick++
                 if (errorText != null) return@onPreviewKeyEvent false
                 // Panel acikken kumanda panelin icinde gezinir; GERI/ESC kapatir.
                 if (panelOpen || qualityOpen) {

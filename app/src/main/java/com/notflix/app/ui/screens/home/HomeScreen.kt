@@ -19,13 +19,16 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Icon
@@ -86,7 +89,10 @@ private sealed interface HomeUi {
 fun HomeScreen(
     onPlay: (pageUrl: String, title: String) -> Unit,
     onOpenDetail: (url: String, title: String) -> Unit,
-    onSeeAll: (sectionTitle: String, moreUrl: String) -> Unit
+    onSeeAll: (sectionTitle: String, moreUrl: String) -> Unit,
+    onRemoveResume: (WatchEntry) -> Unit = {},
+    listState: LazyListState = rememberLazyListState(),
+    resumeListState: LazyListState = rememberLazyListState()
 ) {
     val context = LocalContext.current
     val app = context.applicationContext as NotflixApplication
@@ -128,7 +134,10 @@ fun HomeScreen(
                 data = state.data,
                 onPlay = onPlay,
                 onOpenDetail = onOpenDetail,
-                onSeeAll = onSeeAll
+                onSeeAll = onSeeAll,
+                onRemoveResume = onRemoveResume,
+                listState = listState,
+                resumeListState = resumeListState
             )
         }
     }
@@ -139,7 +148,10 @@ private fun HomeContent(
     data: HomeData,
     onPlay: (pageUrl: String, title: String) -> Unit,
     onOpenDetail: (url: String, title: String) -> Unit,
-    onSeeAll: (sectionTitle: String, moreUrl: String) -> Unit
+    onSeeAll: (sectionTitle: String, moreUrl: String) -> Unit,
+    onRemoveResume: (WatchEntry) -> Unit = {},
+    listState: LazyListState = rememberLazyListState(),
+    resumeListState: LazyListState = rememberLazyListState()
 ) {
     val hero = data.hero
     val pagerState = rememberPagerState(pageCount = { hero.size })
@@ -167,7 +179,7 @@ private fun HomeContent(
         }
     }
 
-    LazyColumn(modifier = Modifier.fillMaxSize()) {
+    LazyColumn(modifier = Modifier.fillMaxSize(), state = listState) {
         item(key = "hero") {
             BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
                 val tv = isTvLayout()
@@ -234,7 +246,9 @@ private fun HomeContent(
             item(key = "continue-row") {
                 ResumeRow(
                     entries = resumeEntries,
-                    onResume = { entry -> onPlay(entry.url, entry.title) }
+                    onResume = { entry -> onPlay(entry.url, entry.title) },
+                    onRemove = onRemoveResume,
+                    listState = resumeListState
                 )
             }
         }
@@ -256,7 +270,12 @@ private fun HomeContent(
 }
 
 @Composable
-private fun ResumeRow(entries: List<WatchEntry>, onResume: (WatchEntry) -> Unit) {
+private fun ResumeRow(
+    entries: List<WatchEntry>,
+    onResume: (WatchEntry) -> Unit,
+    onRemove: (WatchEntry) -> Unit = {},
+    listState: LazyListState = rememberLazyListState()
+) {
     val tv = isTvLayout()
     Column(modifier = Modifier.padding(bottom = if (tv) 12.dp else 6.dp)) {
         Row(
@@ -286,18 +305,27 @@ private fun ResumeRow(entries: List<WatchEntry>, onResume: (WatchEntry) -> Unit)
             )
         }
         LazyRow(
+            state = listState,
             contentPadding = PaddingValues(horizontal = screenPadding()),
             horizontalArrangement = Arrangement.spacedBy(if (tv) 14.dp else 10.dp)
         ) {
             items(entries, key = { it.url + it.updatedAt }) { entry ->
-                ResumePreviewCard(entry = entry, onClick = { onResume(entry) })
+                ResumePreviewCard(
+                    entry = entry,
+                    onClick = { onResume(entry) },
+                    onRemove = { onRemove(entry) }
+                )
             }
         }
     }
 }
 
 @Composable
-private fun ResumePreviewCard(entry: WatchEntry, onClick: () -> Unit) {
+private fun ResumePreviewCard(
+    entry: WatchEntry,
+    onClick: () -> Unit,
+    onRemove: (() -> Unit)? = null
+) {
     val tv = isTvLayout()
     var focused by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(12.dp)
@@ -387,6 +415,25 @@ private fun ResumePreviewCard(entry: WatchEntry, onClick: () -> Unit) {
                 fontSize = 10.sp,
                 fontWeight = FontWeight.Medium
             )
+        }
+        if (onRemove != null) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.Top)
+                    .size(if (tv) 30.dp else 26.dp)
+                    .clip(CircleShape)
+                    .background(Color.White.copy(alpha = 0.07f))
+                    .border(1.dp, Color.White.copy(alpha = 0.16f), CircleShape)
+                    .clickable { onRemove() },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.Filled.Close,
+                    contentDescription = "Listeden kaldır",
+                    tint = NotflixColors.TextSecondary,
+                    modifier = Modifier.size(if (tv) 16.dp else 14.dp)
+                )
+            }
         }
     }
 }

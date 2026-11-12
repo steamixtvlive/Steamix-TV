@@ -5,8 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
 html, body { margin: 0; padding: 0; background: #000; height: 100%; overflow: hidden; }
-#player { position: absolute; top: 50%; left: 50%; width: 200%; height: 200%; transform: translate(-50%, -50%); filter: brightness(1.18) contrast(1.12) saturate(1.14); }
-video { filter: brightness(1.18) contrast(1.12) saturate(1.14); }
+/* YouTube oynatici arayuzunu gizlemek icin kucuk bir yakinlastirma yapilir;
+   %200 yakinlastirma videoyu kirpiyor ve "hizli" gorunmesine yol aciyordu. */
+#player { position: absolute; top: 50%; left: 50%; width: 132%; height: 132%; transform: translate(-50%, -50%); }
+video { filter: brightness(1.06) contrast(1.05) saturate(1.08); }
 </style>
 </head>
 <body>

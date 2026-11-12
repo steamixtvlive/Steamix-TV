@@ -49,7 +49,7 @@
       if (!window.__svMuted) { v.volume = 1; }
       v.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;' +
         'object-fit:cover;z-index:1;background:#000;' +
-        'filter:brightness(1.18) contrast(1.12) saturate(1.14);';
+        'filter:brightness(1.06) contrast(1.05) saturate(1.08);';
       document.body.appendChild(v);
     } catch (e) {}
 

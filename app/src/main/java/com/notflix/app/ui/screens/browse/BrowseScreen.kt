@@ -22,6 +22,7 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -96,7 +97,9 @@ fun BrowseScreen(
     type: MediaType,
     onItemClick: (MediaCard) -> Unit,
     initialGenre: String? = null,
-    heading: String? = null
+    heading: String? = null,
+    gridState: LazyGridState = rememberLazyGridState(),
+    onGenreChange: (String?) -> Unit = {}
 ) {
     val context = LocalContext.current
     val app = context.applicationContext as NotflixApplication
@@ -113,7 +116,6 @@ fun BrowseScreen(
     var loadingMore by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var generation by remember { mutableIntStateOf(0) }
-    val gridState = rememberLazyGridState()
     val firstFocus = remember { FocusRequester() }
 
     suspend fun seedFromGenres(): BrowsePage? {
@@ -319,7 +321,10 @@ fun BrowseScreen(
             Spacer(modifier = Modifier.width(12.dp))
             GenreSelector(
                 current = genre,
-                onSelect = { genre = it }
+                onSelect = {
+                    genre = it
+                    onGenreChange(it.slug)
+                }
             )
         }
 

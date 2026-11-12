@@ -87,6 +87,9 @@ fun AppRoot() {
     val stack = remember { mutableStateListOf<Screen>(Screen.Home) }
     var liveChannels by remember { mutableStateOf<List<LiveChannel>>(emptyList()) }
     val current = stack.lastOrNull() ?: Screen.Home
+    // Ekrandan cikinca kaybolan kaydirma/kategori secimleri burada tutulur.
+    val memory = remember { UiMemory() }
+    var liveFavorites by remember { mutableStateOf(app.settings.liveFavorites().toSet()) }
 
     fun push(screen: Screen) {
         stack.add(screen)
@@ -99,6 +102,13 @@ fun AppRoot() {
 
     fun back() {
         if (stack.size > 1) stack.removeAt(stack.lastIndex)
+    }
+
+    // Uygulamadan temiz cikis: arka planda bir sey birakilmaz.
+    fun exitApp() {
+        val activity = context.findActivity()
+        runCatching { activity?.finishAndRemoveTask() }
+        kotlin.system.exitProcess(0)
     }
 
     var pendingUpdate by remember { mutableStateOf<UpdateInfo?>(null) }
@@ -123,7 +133,13 @@ fun AppRoot() {
     }
 
     BackHandler(enabled = stage == Stage.Main) {
-        back()
+        // Ana ekrandayken geri tusu uygulamayi arka plana alir (kapatir).
+        if (stack.size > 1) {
+            back()
+        } else {
+            val activity = context.findActivity()
+            runCatching { activity?.moveTaskToBack(true) }
+        }
     }
 
     when (stage) {
@@ -185,18 +201,27 @@ fun AppRoot() {
                         is Screen.Home -> HomeScreen(
                             onPlay = { url, title -> push(Screen.Player(url, title, null)) },
                             onOpenDetail = { url, title -> push(Screen.Detail(url, title)) },
-                            onSeeAll = { title, moreUrl -> push(Screen.Collection(title, moreUrl)) }
+                            onSeeAll = { title, moreUrl -> push(Screen.Collection(title, moreUrl)) },
+                            onRemoveResume = { entry -> app.settings.removeWatch(entry.seriesKey) },
+                            listState = memory.list("home"),
+                            resumeListState = memory.list("home-resume")
                         )
                         is Screen.Discover -> DiscoverScreen(
                             onItemClick = { card -> push(Screen.Detail(card.url, card.title)) }
                         )
                         is Screen.Series -> BrowseScreen(
                             type = MediaType.SERIES,
-                            onItemClick = { card -> push(Screen.Detail(card.url, card.title)) }
+                            onItemClick = { card -> push(Screen.Detail(card.url, card.title)) },
+                            gridState = memory.grid("browse-series"),
+                            initialGenre = memory.browseGenre("series"),
+                            onGenreChange = { slug -> memory.setBrowseGenre("series", slug) }
                         )
                         is Screen.Movies -> BrowseScreen(
                             type = MediaType.MOVIE,
-                            onItemClick = { card -> push(Screen.Detail(card.url, card.title)) }
+                            onItemClick = { card -> push(Screen.Detail(card.url, card.title)) },
+                            gridState = memory.grid("browse-movies"),
+                            initialGenre = memory.browseGenre("movies"),
+                            onGenreChange = { slug -> memory.setBrowseGenre("movies", slug) }
                         )
                         is Screen.Genre -> BrowseScreen(
                             type = MediaType.MOVIE,
@@ -208,7 +233,8 @@ fun AppRoot() {
                             title = screen.title,
                             moreUrl = screen.moreUrl,
                             onBack = { back() },
-                            onItemClick = { card -> push(Screen.Detail(card.url, card.title)) }
+                            onItemClick = { card -> push(Screen.Detail(card.url, card.title)) },
+                            gridState = memory.grid("collection-" + screen.title)
                         )
                         is Screen.Live -> LiveScreen(
                             onChannelClick = { channel ->
@@ -222,7 +248,15 @@ fun AppRoot() {
                                     )
                                 )
                             },
-                            onChannelsLoaded = { liveChannels = it }
+                            onChannelsLoaded = { liveChannels = it },
+                            gridState = memory.grid("live"),
+                            initialGroup = memory.liveGroup("live"),
+                            onGroupChange = { group -> memory.setLiveGroup("live", group) },
+                            favoriteUrls = liveFavorites,
+                            onToggleFavorite = { channel ->
+                                app.settings.toggleLiveFavorite(channel.url)
+                                liveFavorites = app.settings.liveFavorites().toSet()
+                            }
                         )
                         is Screen.Continue -> {
                             var entries by remember(screen) {
@@ -260,7 +294,8 @@ fun AppRoot() {
                             onReplayIntro = {
                                 openRoot(Screen.Home)
                                 stage = Stage.Intro
-                            }
+                            },
+                            onExitApp = { exitApp() }
                         )
                         is Screen.Detail -> DetailScreen(
                             url = screen.url,
