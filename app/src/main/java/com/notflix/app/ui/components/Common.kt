@@ -46,6 +46,7 @@ import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.KeyboardArrowLeft
@@ -241,12 +242,13 @@ private fun OverflowArrow(
 @Composable
 private fun TopTab(label: String, selected: Boolean, onClick: () -> Unit) {
     var focused by remember { mutableStateOf(false) }
+    val shape = RoundedCornerShape(8.dp)
     val textColor by animateColorAsState(
         targetValue = when {
-            selected -> NotflixColors.AccentSoft
+            selected -> Color.White
             focused -> Color.White
-            // Secili olmayan sekmeler mat gri: secili (kirmizi) ve odakli
-            // (beyaz) olanlardan hemen ayirt edilebilsin.
+            // Secili olmayan sekmeler mat gri: secili ve odakli olandan
+            // hemen ayirt edilebilsin.
             else -> NotflixColors.TextMuted
         },
         label = "tabColor"
@@ -254,13 +256,27 @@ private fun TopTab(label: String, selected: Boolean, onClick: () -> Unit) {
     Column(
         modifier = Modifier
             .focusBringIntoView()
-            .clip(RoundedCornerShape(8.dp))
+            .clip(shape)
             .background(
                 when {
-                    selected -> NotflixColors.Accent.copy(alpha = 0.12f)
-                    focused -> Color.White.copy(alpha = 0.06f)
+                    // Secili sekme net gorunsun: beyaz zemin + belirgin cerceve.
+                    selected -> Color.White.copy(alpha = 0.16f)
+                    focused -> Color.White.copy(alpha = 0.10f)
                     else -> Color.Transparent
                 }
+            )
+            .border(
+                width = when {
+                    focused -> 2.dp
+                    selected -> 1.5.dp
+                    else -> 0.dp
+                },
+                color = when {
+                    focused -> Color.White
+                    selected -> Color.White.copy(alpha = 0.72f)
+                    else -> Color.Transparent
+                },
+                shape = shape
             )
             .onFocusChanged { focused = it.isFocused }
             .clickable(onClick = onClick)
@@ -301,8 +317,8 @@ fun IconAction(
             .clip(CircleShape)
             .background(if (focused) Color.White.copy(alpha = 0.09f) else Color.Transparent)
             .border(
-                if (focused) 1.dp else 0.dp,
-                if (focused) Color.White.copy(alpha = 0.35f) else Color.Transparent,
+                if (focused) 2.dp else 0.dp,
+                if (focused) Color.White.copy(alpha = 0.85f) else Color.Transparent,
                 CircleShape
             )
             .focusBringIntoView()
@@ -441,8 +457,9 @@ fun PosterCard(
                 .clip(shape)
                 .background(NotflixColors.Card)
                 .border(
-                    width = if (focused) 2.dp else 1.dp,
-                    color = if (focused) NotflixColors.AccentSoft else Color.White.copy(alpha = 0.08f),
+                    // Odak vurgusu koyu ve net olsun: secilen oge anlasilsin.
+                    width = if (focused) 3.dp else 1.dp,
+                    color = if (focused) Color.White else Color.White.copy(alpha = 0.08f),
                     shape = shape
                 )
         ) {
@@ -664,8 +681,8 @@ fun LiveChannelCard(
                 .clip(shape)
                 .background(NotflixColors.Card)
                 .border(
-                    if (focused) 2.dp else 1.dp,
-                    if (focused) NotflixColors.AccentSoft else Color.White.copy(alpha = 0.07f),
+                    if (focused) 2.5.dp else 1.dp,
+                    if (focused) Color.White else Color.White.copy(alpha = 0.07f),
                     shape
                 ),
             contentAlignment = Alignment.Center
@@ -797,10 +814,10 @@ fun FilterChip(
                 }
             )
             .border(
-                width = if (focused && !selected) 1.5.dp else 1.dp,
+                width = if (focused && !selected) 2.dp else 1.dp,
                 color = when {
                     selected -> NotflixColors.Accent
-                    focused -> Color.White.copy(alpha = 0.55f)
+                    focused -> Color.White.copy(alpha = 0.90f)
                     else -> Color.White.copy(alpha = 0.08f)
                 },
                 shape = shape
@@ -887,5 +904,50 @@ fun ErrorState(message: String, onRetry: (() -> Unit)? = null) {
 fun EmptyState(message: String) {
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Text(text = message, color = NotflixColors.TextMuted, fontSize = 14.sp)
+    }
+}
+
+/**
+ * Kitaplik ve Devam Et listelerindeki tek tek / toplu silme dugmesi.
+ * Poster uzerine binmedigi icin kumanda ve klavye odagi her zaman ulasir.
+ */
+@Composable
+fun DeleteButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    text: String = "Sil"
+) {
+    var focused by remember { mutableStateOf(false) }
+    val shape = RoundedCornerShape(8.dp)
+    Row(
+        modifier = modifier
+            .heightIn(min = 34.dp)
+            .clip(shape)
+            .background(if (focused) Color(0xFFC62828) else Color(0xFF3A1416))
+            .border(
+                width = if (focused) 2.dp else 1.dp,
+                color = if (focused) Color.White else Color(0xFF8E2F35),
+                shape = shape
+            )
+            .focusBringIntoView()
+            .onFocusChanged { focused = it.isFocused }
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 7.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = Icons.Filled.Delete,
+            contentDescription = null,
+            tint = Color.White,
+            modifier = Modifier.size(15.dp)
+        )
+        Spacer(modifier = Modifier.width(5.dp))
+        Text(
+            text = text,
+            color = Color.White,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1
+        )
     }
 }

@@ -19,10 +19,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -44,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.notflix.app.data.WatchEntry
+import com.notflix.app.ui.components.DeleteButton
 import com.notflix.app.ui.components.EmptyState
 import com.notflix.app.ui.components.isTvLayout
 import com.notflix.app.ui.components.screenPadding
@@ -54,7 +53,8 @@ fun ContinueScreen(
     entries: List<WatchEntry>,
     onResume: (WatchEntry) -> Unit,
     onOpenDetail: (WatchEntry) -> Unit,
-    onRemove: (WatchEntry) -> Unit
+    onRemove: (WatchEntry) -> Unit,
+    onClearAll: () -> Unit
 ) {
     val latest = remember(entries) {
         entries.groupBy { it.seriesKey }
@@ -64,29 +64,48 @@ fun ContinueScreen(
     val active = remember(latest) { latest.filter { !it.completed }.sortedByDescending { it.updatedAt } }
     val finished = remember(latest) { latest.filter { it.completed }.sortedByDescending { it.updatedAt } }
     val all = active + finished
+    var confirmClear by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        Column(
-            modifier = Modifier.padding(
-                start = screenPadding(),
-                end = screenPadding(),
-                top = if (isTvLayout()) 18.dp else 12.dp,
-                bottom = 10.dp
-            )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(
+                    start = screenPadding(),
+                    end = screenPadding(),
+                    top = if (isTvLayout()) 18.dp else 12.dp,
+                    bottom = 10.dp
+                ),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = "Kaldığın yerden devam",
-                style = if (isTvLayout()) MaterialTheme.typography.headlineMedium
-                else MaterialTheme.typography.headlineSmall,
-                color = NotflixColors.TextPrimary
-            )
-            Text(
-                text = if (all.isEmpty()) "İzlemeye başladığın içerikler burada görünür."
-                else "${active.size} devam eden · ${finished.size} biten · silmek için ×",
-                color = NotflixColors.TextMuted,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Medium
-            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Kaldığın yerden devam",
+                    style = if (isTvLayout()) MaterialTheme.typography.headlineMedium
+                    else MaterialTheme.typography.headlineSmall,
+                    color = NotflixColors.TextPrimary
+                )
+                Text(
+                    text = if (all.isEmpty()) "İzlemeye başladığın içerikler burada görünür."
+                    else "${active.size} devam eden · ${finished.size} biten · tek tek silmek için sağdaki Sil",
+                    color = NotflixColors.TextMuted,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+            if (all.isNotEmpty()) {
+                DeleteButton(
+                    text = if (confirmClear) "Emin misin? Tekrar bas" else "Hepsini sil",
+                    onClick = {
+                        if (confirmClear) {
+                            onClearAll()
+                            confirmClear = false
+                        } else {
+                            confirmClear = true
+                        }
+                    }
+                )
+            }
         }
 
         if (all.isEmpty()) {
@@ -95,7 +114,7 @@ fun ContinueScreen(
         }
 
         LazyVerticalGrid(
-            columns = GridCells.Adaptive(if (isTvLayout()) 300.dp else 236.dp),
+            columns = GridCells.Adaptive(if (isTvLayout()) 330.dp else 268.dp),
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(
                 start = screenPadding(),
@@ -112,7 +131,10 @@ fun ContinueScreen(
                     onClick = {
                         if (entry.completed) onOpenDetail(entry) else onResume(entry)
                     },
-                    onRemove = { onRemove(entry) }
+                    onRemove = {
+                        onRemove(entry)
+                        confirmClear = false
+                    }
                 )
             }
         }
@@ -122,24 +144,22 @@ fun ContinueScreen(
 @Composable
 private fun ContinueCard(entry: WatchEntry, onClick: () -> Unit, onRemove: () -> Unit) {
     var focused by remember { mutableStateOf(false) }
-    var removeFocused by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(11.dp)
-    Box(modifier = Modifier.fillMaxWidth()) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(shape)
-                .background(if (focused) Color.White.copy(alpha = 0.07f) else NotflixColors.Card)
-                .border(
-                    if (focused) 2.dp else 1.dp,
-                    if (focused) NotflixColors.AccentSoft else Color.White.copy(alpha = 0.08f),
-                    shape
-                )
-                .onFocusChanged { focused = it.isFocused }
-                .clickable(onClick = onClick)
-                .padding(8.dp)
-        ) {
-        Row {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(if (focused) Color.White.copy(alpha = 0.08f) else NotflixColors.Card)
+            .border(
+                if (focused) 2.dp else 1.dp,
+                if (focused) Color.White else Color.White.copy(alpha = 0.08f),
+                shape
+            )
+            .onFocusChanged { focused = it.isFocused }
+            .clickable(onClick = onClick)
+            .padding(8.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
                 modifier = Modifier
                     .width(if (isTvLayout()) 88.dp else 74.dp)
@@ -232,29 +252,8 @@ private fun ContinueCard(entry: WatchEntry, onClick: () -> Unit, onRemove: () ->
                     )
                 }
             }
-        }
-        }
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(5.dp)
-                .size(if (isTvLayout()) 28.dp else 24.dp)
-                .background(Color.Black.copy(alpha = 0.74f), CircleShape)
-                .border(
-                    if (removeFocused) 1.5.dp else 1.dp,
-                    if (removeFocused) NotflixColors.AccentSoft else Color.White.copy(alpha = 0.24f),
-                    CircleShape
-                )
-                .onFocusChanged { removeFocused = it.isFocused }
-                .clickable(onClick = onRemove),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = Icons.Filled.Close,
-                contentDescription = "${entry.title} listeden kaldır",
-                tint = Color.White,
-                modifier = Modifier.size(if (isTvLayout()) 16.dp else 14.dp)
-            )
+            Spacer(modifier = Modifier.width(8.dp))
+            DeleteButton(onClick = onRemove)
         }
     }
 }

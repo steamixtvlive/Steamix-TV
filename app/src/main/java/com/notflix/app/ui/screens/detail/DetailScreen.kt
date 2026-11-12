@@ -41,11 +41,13 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -86,6 +88,7 @@ import com.notflix.app.ui.components.NotflixButton
 import com.notflix.app.ui.components.focusBringIntoView
 import com.notflix.app.ui.components.isTvLayout
 import com.notflix.app.ui.components.screenPadding
+import com.notflix.app.ui.screens.player.PlayerKeyBus
 import com.notflix.app.ui.theme.NotflixColors
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -110,6 +113,34 @@ fun DetailScreen(
 
     val backFocus = remember(url) { FocusRequester() }
     val playFocus = remember(url) { FocusRequester() }
+
+    // Compose odagi tamamen kaybolursa (pencere degisimi, gecis animasyonu,
+    // WebView) ok tuslari ve klavye sessizce calismaz hale geliyordu. Activity
+    // seviyesinde yakalanan bu yedek, ilk tusta odagi oynat dugmesine alir.
+    // Baska bir ekranin odağı varsa (view.hasFocus true) hicbir seye karismaz.
+    val view = androidx.compose.ui.platform.LocalView.current
+    val latestHasDetail by rememberUpdatedState(detail != null)
+    DisposableEffect(url) {
+        val handler: (Int) -> Boolean = { keyCode ->
+            if (latestHasDetail && !view.hasFocus()) {
+                when (keyCode) {
+                    android.view.KeyEvent.KEYCODE_DPAD_UP,
+                    android.view.KeyEvent.KEYCODE_DPAD_DOWN,
+                    android.view.KeyEvent.KEYCODE_DPAD_LEFT,
+                    android.view.KeyEvent.KEYCODE_DPAD_RIGHT,
+                    android.view.KeyEvent.KEYCODE_DPAD_CENTER,
+                    android.view.KeyEvent.KEYCODE_ENTER,
+                    android.view.KeyEvent.KEYCODE_NUMPAD_ENTER ->
+                        runCatching { playFocus.requestFocus() }.isSuccess
+                    else -> false
+                }
+            } else {
+                false
+            }
+        }
+        PlayerKeyBus.register(handler)
+        onDispose { PlayerKeyBus.unregister(handler) }
+    }
 
     LaunchedEffect(url, retryTick) {
         loading = true
@@ -216,6 +247,10 @@ private fun DetailContent(
     val seasonsFocus = remember(detail.url) { FocusRequester() }
     val episodesFocus = remember(detail.url) { FocusRequester() }
     val relatedFocus = remember(detail.url) { FocusRequester() }
+    // Oynat ve Kitapliga Ekle dugmeleri arasinda klavye/kumanda gecisi
+    // her cihazda calissin diye acik adresle yonetilir.
+    val libraryFocus = remember(detail.url) { FocusRequester() }
+    var libraryFocused by remember(detail.url) { mutableStateOf(false) }
     var zone by remember(detail.url) { mutableStateOf(DetailZone.Play) }
     // Odak gercekten oyun butonuna dustu mu? (Bazi cihazlarda istek sessizce basarisiz olur.)
     var playFocused by remember(detail.url) { mutableStateOf(false) }
@@ -318,6 +353,20 @@ private fun DetailContent(
                     // Asagi tusu bolumler arasinda gecer; odak gecince sayfa
                     // otomatik kayar.
                     Key.DirectionDown -> moveZone(1)
+                    Key.DirectionRight -> {
+                        if (!libraryFocused && zone == DetailZone.Play) {
+                            runCatching { libraryFocus.requestFocus() }.isSuccess
+                        } else {
+                            false
+                        }
+                    }
+                    Key.DirectionLeft -> {
+                        if (libraryFocused) {
+                            runCatching { playFocus.requestFocus() }.isSuccess
+                        } else {
+                            false
+                        }
+                    }
                     // Yukarida once sayfa kaydirilir (en ustte degilse),
                     // en ustteyken bolum geri gider.
                     Key.DirectionUp -> {
@@ -335,8 +384,13 @@ private fun DetailContent(
         DetailHero(
             detail = detail,
             playFocus = playFocus,
+            libraryFocus = libraryFocus,
             onPlayFocusChanged = { focused ->
                 playFocused = focused
+                if (focused) { zone = DetailZone.Play; zoneFocused = DetailZone.Play; libraryFocused = false }
+            },
+            onLibraryFocusChanged = { focused ->
+                libraryFocused = focused
                 if (focused) { zone = DetailZone.Play; zoneFocused = DetailZone.Play }
             },
             actionLabel = actionLabel,
@@ -483,7 +537,9 @@ private fun DetailContent(
 private fun DetailHero(
     detail: MediaDetail,
     playFocus: FocusRequester,
+    libraryFocus: FocusRequester,
     onPlayFocusChanged: (Boolean) -> Unit,
+    onLibraryFocusChanged: (Boolean) -> Unit,
     actionLabel: String,
     progressLabel: String,
     favorite: Boolean,
@@ -701,7 +757,10 @@ private fun DetailHero(
                         text = if (favorite) "Kitaplıkta" else "Kitaplığa Ekle",
                         icon = if (favorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
                         primary = false,
-                        onClick = onToggleFavorite
+                        onClick = onToggleFavorite,
+                        modifier = Modifier
+                            .focusRequester(libraryFocus)
+                            .onFocusChanged { onLibraryFocusChanged(it.hasFocus) }
                     )
                 }
                 if (progressLabel.isNotBlank()) {
@@ -757,8 +816,8 @@ private fun EpisodeCard(
                 .clip(shape)
                 .background(NotflixColors.Card)
                 .border(
-                    if (focused) 2.dp else 1.dp,
-                    if (focused) NotflixColors.AccentSoft else Color.White.copy(alpha = 0.08f),
+                    if (focused) 2.5.dp else 1.dp,
+                    if (focused) Color.White else Color.White.copy(alpha = 0.08f),
                     shape
                 )
         ) {
@@ -845,8 +904,8 @@ private fun CastCard(person: PersonCard, modifier: Modifier = Modifier, onClick:
                 .clip(CircleShape)
                 .background(NotflixColors.Card)
                 .border(
-                    width = if (focused) 2.dp else 1.dp,
-                    color = if (focused) NotflixColors.AccentSoft
+                    width = if (focused) 2.5.dp else 1.dp,
+                    color = if (focused) Color.White
                     else Color.White.copy(alpha = 0.10f),
                     shape = CircleShape
                 ),

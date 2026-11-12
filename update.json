@@ -1,6 +1,6 @@
 {
-  "versionCode": 6,
-  "versionName": "1.0.2",
+  "versionCode": 7,
+  "versionName": "1.0.3",
   "apkUrl": "https://github.com/steamixtvlive/Steamix-TV/releases/latest/download/notflix.apk",
-  "notes": "Düzeltmeler: uygulamadan çıkış artık temiz (Ayarlar → Uygulamadan çık, ana ekranda geri tuşu uygulamayı arka plana alır) ve çıkışta oynatıcı/fragman çökmesi giderildi. Film, dizi ve kanal listelerinde geri dönüldüğünde kaydırma konumu, seçili kategori (örn. Belgesel) ve odak yerinde kalır. Canlı TV'ye favoriler eklendi (kalp ikonu + Favoriler kategorisi). Oynatıcıda menü/kontroller kumandayla gezinirken kaybolmuyor, sadece hareketsizlikte kapanıyor. Ana sayfadaki 'Devam Et' öğeleri tek tek silinebiliyor. Üst menüde seçili olmayan sekmeler ayırt edilebilir renkte. Detay ekranındaki fragman normal hızda ve kırpılmadan oynuyor."
+  "notes": "Kitaplığım ve Kaldığın Yerden Devam listelerinde her öğenin sağına Sil düğmesi eklendi; tek tek veya üstteki Hepsini sil ile tümü silinebilir. Film ve dizi detay sayfasında ok tuşları ve klavye ile gezinme düzeltildi; oynatıcı kontrolleri de kumanda ve klavye ile aynı şekilde çalışır. Canlı TV kanal paneli kanal seçildiğinde açık kalır, sadece GERİ/ESC ile kapanır. Ayarlardaki Uygulamadan çık düğmesi kırmızı ve belirgin hale getirildi. Üst menü sekmelerinde seçili olan sekme ve odaklanan öğe daha net görünür."
 }

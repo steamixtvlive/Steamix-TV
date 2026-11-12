@@ -14,12 +14,14 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material3.CircularProgressIndicator
@@ -49,6 +51,7 @@ import com.notflix.app.BuildConfig
 import com.notflix.app.NotflixApplication
 import com.notflix.app.data.UpdateResult
 import com.notflix.app.ui.components.ScreenTitleBar
+import com.notflix.app.ui.components.focusBringIntoView
 import com.notflix.app.ui.components.isTvLayout
 import com.notflix.app.ui.components.screenPadding
 import com.notflix.app.ui.theme.NotflixColors
@@ -225,11 +228,7 @@ ActionRow(
 
             item(key = "exit-head") { SectionHeader("Uygulama") }
             item(key = "exit-card") {
-                ActionRow(
-                    title = "Uygulamadan çık",
-                    subtitle = "NOTFLİX'i tamamen kapat.",
-                    onClick = onExitApp
-                )
+                ExitButton(onClick = onExitApp)
             }
 
             item(key = "update-head") { SectionHeader("Güncelleme") }
@@ -480,6 +479,52 @@ private fun ToggleRow(
                 uncheckedBorderColor = NotflixColors.Line
             )
         )
+    }
+}
+
+@Composable
+private fun ExitButton(onClick: () -> Unit) {
+    var focused by remember { mutableStateOf(false) }
+    val shape = RoundedCornerShape(12.dp)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = screenPadding())
+            .heightIn(min = if (isTvLayout()) 62.dp else 56.dp)
+            .clip(shape)
+            .background(if (focused) Color(0xFFD32F2F) else Color(0xFF8E1B1B))
+            .border(
+                width = if (focused) 2.dp else 1.dp,
+                color = if (focused) Color.White else Color(0xFFFFB4B4).copy(alpha = 0.45f),
+                shape = shape
+            )
+            .focusBringIntoView()
+            .onFocusChanged { focused = it.isFocused }
+            .clickable(onClick = onClick)
+            .padding(horizontal = 18.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            Icons.Filled.ExitToApp,
+            contentDescription = null,
+            tint = Color.White,
+            modifier = Modifier.size(23.dp)
+        )
+        Spacer(modifier = Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = "Uygulamadan çık",
+                color = Color.White,
+                fontSize = if (isTvLayout()) 16.sp else 15.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = "NOTFLİX tamamen kapanır.",
+                color = Color(0xFFFFD9D9),
+                fontSize = 11.sp
+            )
+        }
     }
 }
 

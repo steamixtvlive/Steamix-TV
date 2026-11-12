@@ -10,25 +10,30 @@ import android.view.KeyEvent
  * ve tuşlar hiçbir yere ulaşamıyordu. Activity `dispatchKeyEvent` içinde
  * yakalanan tuşlar odaktan bağımsız çalışır; hem TV kumandası hem de
  * klavye (ok tuşları) aynı şekilde işlenir.
+ *
+ * Birden fazla ekran (oynatici + detay) aynı anda kayitli olabilir; en son
+ * kayit olan once denenir. Isleyen ilk handler tusi tuketir.
  */
 object PlayerKeyBus {
 
-    private var handler: ((Int) -> Boolean)? = null
+    private val handlers = mutableListOf<(Int) -> Boolean>()
 
     fun register(handler: (Int) -> Boolean) {
-        this.handler = handler
+        handlers.add(handler)
     }
 
     fun unregister(handler: (Int) -> Boolean) {
-        if (this.handler === handler) this.handler = null
+        handlers.removeAll { it === handler }
     }
 
     /**
-     * @return true ise tuş oynatıcı tarafından işlendi ve tüketildi.
+     * @return true ise tuş işlendi ve tüketildi.
      */
     fun dispatch(keyCode: Int): Boolean {
-        val current = handler ?: return false
-        return current(keyCode)
+        for (index in handlers.indices.reversed()) {
+            if (handlers[index](keyCode)) return true
+        }
+        return false
     }
 
     /** Kanal ileri/geri yardımcıları (kumandası olan TV'ler için). */

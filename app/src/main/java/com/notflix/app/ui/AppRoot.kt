@@ -273,6 +273,10 @@ fun AppRoot() {
                                 onRemove = { entry ->
                                     app.settings.removeWatch(entry.seriesKey)
                                     entries = app.settings.watchHistory()
+                                },
+                                onClearAll = {
+                                    app.settings.clearPositions()
+                                    entries = app.settings.watchHistory()
                                 }
                             )
                         }

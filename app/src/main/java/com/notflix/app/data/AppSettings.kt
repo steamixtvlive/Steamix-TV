@@ -84,6 +84,10 @@ class AppSettings(context: Context) {
         persistFavorites(favorites().filterNot { it.url == url })
     }
 
+    fun clearFavorites() {
+        prefs.edit().remove(KEY_LIBRARY).apply()
+    }
+
     /* ---------------- Canli TV favorileri ---------------- */
 
     fun liveFavorites(): List<String> = runCatching {

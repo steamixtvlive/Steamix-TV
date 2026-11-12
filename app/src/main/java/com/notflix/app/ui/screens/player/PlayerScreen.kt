@@ -586,7 +586,24 @@ fun PlayerScreen(
                     else -> false
                 }
                 else -> when (keyCode) {
-                    android.view.KeyEvent.KEYCODE_DPAD_UP,
+                    android.view.KeyEvent.KEYCODE_DPAD_UP -> {
+                        // Kontroller acikken ok tuslari kontrollerde gezinir;
+                        // tam ekranda (kontroller gizli) kanal degistirir.
+                        if (isLive && channels.size > 1 && !controlsVisible) {
+                            zap(1)
+                            true
+                        } else {
+                            false
+                        }
+                    }
+                    android.view.KeyEvent.KEYCODE_DPAD_DOWN -> {
+                        if (isLive && channels.size > 1 && !controlsVisible) {
+                            zap(-1)
+                            true
+                        } else {
+                            false
+                        }
+                    }
                     android.view.KeyEvent.KEYCODE_CHANNEL_UP,
                     android.view.KeyEvent.KEYCODE_MEDIA_NEXT -> {
                         if (isLive && channels.size > 1) {
@@ -596,7 +613,6 @@ fun PlayerScreen(
                             false
                         }
                     }
-                    android.view.KeyEvent.KEYCODE_DPAD_DOWN,
                     android.view.KeyEvent.KEYCODE_CHANNEL_DOWN,
                     android.view.KeyEvent.KEYCODE_MEDIA_PREVIOUS -> {
                         if (isLive && channels.size > 1) {
@@ -757,19 +773,19 @@ fun PlayerScreen(
                     }
                 }
                 when (event.key) {
-                    // Tam ekran modu (kontroller gizliyken): yukarı/asagi kanal
-                    // degistirir, sag ok kanal listesini acar.
+                    // Tam ekran modu (kontroller gizliyken): canlida yukarı/asagi
+                    // kanal degistirir, film/dizide kontrolleri geri getirir.
                     Key.DirectionUp -> {
-                        if (!controlsVisible && isLive) {
-                            zap(1)
+                        if (!controlsVisible) {
+                            if (isLive && channels.size > 1) zap(1) else controlsVisible = true
                             true
                         } else {
                             false
                         }
                     }
                     Key.DirectionDown -> {
-                        if (!controlsVisible && isLive) {
-                            zap(-1)
+                        if (!controlsVisible) {
+                            if (isLive && channels.size > 1) zap(-1) else controlsVisible = true
                             true
                         } else {
                             false
@@ -1119,8 +1135,8 @@ fun PlayerScreen(
                 focusRequester = panelFocus,
                 onSelect = { selected ->
                     index = selected
-                    // Kanal secildi: panel kapansin, tam ekrana don.
-                    panelOpen = false
+                    // Kanal secildiginde panel acik kaliyor; kapatmak icin
+                    // kumandada GERI/ESC kullanilir.
                 },
                 onClose = { panelOpen = false }
             )
