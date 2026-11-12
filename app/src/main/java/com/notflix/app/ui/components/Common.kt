@@ -181,7 +181,7 @@ private fun TopTab(label: String, selected: Boolean, onClick: () -> Unit) {
     var focused by remember { mutableStateOf(false) }
     val textColor by animateColorAsState(
         targetValue = when {
-            selected -> NotflixColors.TextPrimary
+            selected -> NotflixColors.AccentSoft
             focused -> Color.White
             else -> NotflixColors.TextSecondary
         },
@@ -191,7 +191,13 @@ private fun TopTab(label: String, selected: Boolean, onClick: () -> Unit) {
         modifier = Modifier
             .focusBringIntoView()
             .clip(RoundedCornerShape(8.dp))
-            .background(if (focused) Color.White.copy(alpha = 0.06f) else Color.Transparent)
+            .background(
+                when {
+                    selected -> NotflixColors.Accent.copy(alpha = 0.12f)
+                    focused -> Color.White.copy(alpha = 0.06f)
+                    else -> Color.Transparent
+                }
+            )
             .onFocusChanged { focused = it.isFocused }
             .clickable(onClick = onClick)
             .padding(horizontal = if (isTvLayout()) 10.dp else 8.dp, vertical = 7.dp),
@@ -201,57 +207,18 @@ private fun TopTab(label: String, selected: Boolean, onClick: () -> Unit) {
             text = label,
             color = textColor,
             fontSize = if (isTvLayout()) 14.sp else 12.5.sp,
-            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
             maxLines = 1
         )
         Spacer(modifier = Modifier.height(4.dp))
         Box(
             modifier = Modifier
-                .width(if (selected) 22.dp else 0.dp)
-                .height(2.dp)
-        ) {
-            if (selected) TabGlowLine()
-        }
-    }
-}
-
-@Composable
-private fun TabGlowLine() {
-    val transition = rememberInfiniteTransition(label = "tabGlow")
-    val sweep by transition.animateFloat(
-        initialValue = -1f,
-        targetValue = 2f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1900, easing = LinearEasing)
-        ),
-        label = "sweep"
-    )
-    val pulse by transition.animateFloat(
-        initialValue = 0.6f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1300, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "pulse"
-    )
-    Canvas(modifier = Modifier.fillMaxSize()) {
-        val radius = size.height / 2f
-        drawRoundRect(
-            color = NotflixColors.Accent.copy(alpha = 0.55f + 0.3f * pulse),
-            cornerRadius = CornerRadius(radius)
-        )
-        val center = sweep * size.width
-        drawRect(
-            brush = Brush.horizontalGradient(
-                colors = listOf(
-                    Color.Transparent,
-                    Color.White.copy(alpha = 0.95f * pulse),
-                    Color.Transparent
-                ),
-                startX = center - size.width * 0.55f,
-                endX = center + size.width * 0.55f
-            )
+                .width(if (selected) 26.dp else 0.dp)
+                .height(3.dp)
+                .clip(RoundedCornerShape(2.dp))
+                .background(
+                    if (selected) NotflixColors.Accent else Color.Transparent
+                )
         )
     }
 }

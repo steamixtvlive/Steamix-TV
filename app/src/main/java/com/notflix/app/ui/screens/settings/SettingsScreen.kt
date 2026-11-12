@@ -299,40 +299,39 @@ private fun UpdateCard(
         Spacer(modifier = Modifier.height(14.dp))
         Row(
             modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(11.dp))
-                .background(if (busy) NotflixColors.Card else NotflixColors.Accent)
+                .clip(RoundedCornerShape(10.dp))
+                .background(NotflixColors.Card)
+                .border(1.dp, NotflixColors.LineSoft, RoundedCornerShape(10.dp))
                 .clickable(enabled = !busy, onClick = onCheck)
-                .padding(vertical = 13.dp),
-            horizontalArrangement = Arrangement.Center,
+                .padding(horizontal = 14.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (busy) {
                 CircularProgressIndicator(
-                    color = NotflixColors.TextPrimary,
+                    color = NotflixColors.AccentSoft,
                     strokeWidth = 2.dp,
-                    modifier = Modifier.size(16.dp)
+                    modifier = Modifier.size(15.dp)
                 )
                 Spacer(modifier = Modifier.width(9.dp))
                 Text(
                     text = "Denetleniyor…",
-                    color = NotflixColors.TextPrimary,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold
+                    color = NotflixColors.TextSecondary,
+                    fontSize = 12.5.sp,
+                    fontWeight = FontWeight.Medium
                 )
             } else {
                 Icon(
                     Icons.Filled.Refresh,
                     contentDescription = null,
-                    tint = Color.White,
-                    modifier = Modifier.size(17.dp)
+                    tint = NotflixColors.AccentSoft,
+                    modifier = Modifier.size(15.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "Güncelleme denetle",
-                    color = Color.White,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold
+                    text = "Güncellemeyi denetle",
+                    color = NotflixColors.TextPrimary,
+                    fontSize = 12.5.sp,
+                    fontWeight = FontWeight.Medium
                 )
             }
         }

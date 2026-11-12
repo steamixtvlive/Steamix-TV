@@ -32,6 +32,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.PlayArrow
@@ -95,8 +96,18 @@ private val pages = listOf(
     ),
     IntroPage(
         "Canlı TV bizim",
-        "Türkiye kanalları en başta. Yayınlar doğrudan oynar; iframe yok, tarayıcı yok. Liste internetten güncellenir.",
+        "Türkiye kanalları en başta. Yayınlar doğrudan oynar; iframe yok, tarayıcı yok. Kanal listesi bizim API'mizden gelir.",
         "CANLI TV"
+    ),
+    IntroPage(
+        "Kumanda elinde",
+        "Yukarı/aşağı ile menüler arasında gezin, sağa/sola ile içerikte ilerle. Yazı alanında sıkışmaz, ok tuşuyla çıkarsın.",
+        "KUMANDA"
+    ),
+    IntroPage(
+        "Kitaplığın senin",
+        "Favoriler, izleme geçmişi ve devam edenler tek yerde. Kaldığın yerden kaldığın yerden devam edersin.",
+        "KİTAPLIK"
     ),
     IntroPage(
         "Artık hazırsın",
@@ -270,7 +281,144 @@ private fun IntroArt(index: Int) {
         2 -> DevicesArt()
         3 -> PlayerArt()
         4 -> LiveArt()
+        5 -> RemoteArt()
+        6 -> LibraryArt()
         else -> FinalArt()
+    }
+}
+
+@Composable
+private fun RemoteArt() {
+    val infinite = rememberInfiniteTransition(label = "remote")
+    val pulse by infinite.animateFloat(
+        initialValue = 0.45f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(1500), RepeatMode.Reverse),
+        label = "pulse"
+    )
+    val shift by infinite.animateFloat(
+        initialValue = -6f,
+        targetValue = 6f,
+        animationSpec = infiniteRepeatable(tween(2200, easing = LinearEasing), RepeatMode.Reverse),
+        label = "shift"
+    )
+    Box(
+        modifier = Modifier.size(width = 300.dp, height = 190.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .size(150.dp)
+                .graphicsLayer { alpha = 0.22f * pulse }
+                .clip(CircleShape)
+                .background(NotflixColors.Accent)
+        )
+        Box(
+            modifier = Modifier
+                .width(74.dp)
+                .height(150.dp)
+                .clip(RoundedCornerShape(20.dp))
+                .background(Color(0xFF161616))
+                .border(1.dp, Color.White.copy(alpha = 0.14f), RoundedCornerShape(20.dp))
+                .padding(vertical = 12.dp),
+            contentAlignment = Alignment.TopCenter
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(11.dp)
+                        .clip(CircleShape)
+                        .background(NotflixColors.Accent)
+                )
+                repeat(3) {
+                    Box(
+                        modifier = Modifier
+                            .size(9.dp)
+                            .clip(CircleShape)
+                            .background(Color.White.copy(alpha = 0.18f))
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .offset(x = shift.dp)
+                        .width(22.dp)
+                        .height(26.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(NotflixColors.Accent.copy(alpha = 0.85f))
+                )
+            }
+        }
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .offset(x = (-24).dp, y = (-6).dp)
+                .size(46.dp)
+                .clip(CircleShape)
+                .background(Color(0xFF1C1C1C))
+                .border(1.dp, Color.White.copy(alpha = 0.12f), CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(16.dp)
+                    .clip(CircleShape)
+                    .background(NotflixColors.Accent.copy(alpha = 0.55f + 0.45f * pulse))
+            )
+        }
+    }
+}
+
+@Composable
+private fun LibraryArt() {
+    val infinite = rememberInfiniteTransition(label = "library")
+    val glow by infinite.animateFloat(
+        initialValue = 0.35f,
+        targetValue = 0.95f,
+        animationSpec = infiniteRepeatable(tween(1800), RepeatMode.Reverse),
+        label = "glow"
+    )
+    val colors = listOf(
+        Color(0xFF2A1215),
+        Color(0xFF16233A),
+        Color(0xFF35201A),
+        Color(0xFF1B2E22)
+    )
+    Column(
+        modifier = Modifier.width(300.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        colors.chunked(3).forEachIndexed { rowIndex, row ->
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                row.forEachIndexed { index, color ->
+                    val highlighted = rowIndex == 0 && index == 0
+                    Box(
+                        modifier = Modifier
+                            .width(93.dp)
+                            .height(60.dp)
+                            .clip(RoundedCornerShape(9.dp))
+                            .background(color)
+                            .border(
+                                if (highlighted) 1.5.dp else 1.dp,
+                                if (highlighted) NotflixColors.Accent.copy(alpha = glow)
+                                else Color.White.copy(alpha = 0.09f),
+                                RoundedCornerShape(9.dp)
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Filled.FavoriteBorder,
+                            contentDescription = null,
+                            tint = if (highlighted) NotflixColors.AccentSoft
+                            else Color.White.copy(alpha = 0.22f),
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 

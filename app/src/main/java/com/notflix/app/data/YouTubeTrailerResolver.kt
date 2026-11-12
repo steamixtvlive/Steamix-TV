@@ -2,6 +2,8 @@ package com.notflix.app.data
 
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -12,11 +14,12 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /**
- * YouTube fragmanini dogrudan oynatilabilir MP4 adresine cevirir.
+ * YouTube fragmanini dogrudan oynatilabilir H.264 MP4 adresine cevirir.
  *
- * WebView + YouTube iframe oynaticisi, cihaz VP9/AV1 decode edemiyorsa
- * sesi acar ama kadreleri siyah birakir (BlueStacks / emulator). Bu cozum
- * progressive H.264 (itag 18 / 22) akisini bulup ExoPlayer'a verir.
+ * Neden gerekli: WebView icindeki YouTube iframe oynaticisi, bazi cihazlarda
+ * (BlueStacks / emulator) video icin VP9-AV1 akisi secer. Bu codec cozule-
+ * mediigi icin ses gelir ama kadreler siyah kalir. Burada progressive H.264
+ * akisi cozulup ExoPlayer'a verilir; boylece gercek goruntu oynatilir.
  */
 class YouTubeTrailerResolver {
 
@@ -29,9 +32,9 @@ class YouTubeTrailerResolver {
     }
 
     private val client = OkHttpClient.Builder()
-        .connectTimeout(8, TimeUnit.SECONDS)
-        .readTimeout(12, TimeUnit.SECONDS)
-        .callTimeout(18, TimeUnit.SECONDS)
+        .connectTimeout(6, TimeUnit.SECONDS)
+        .readTimeout(10, TimeUnit.SECONDS)
+        .callTimeout(14, TimeUnit.SECONDS)
         .followRedirects(true)
         .build()
 
@@ -43,13 +46,30 @@ class YouTubeTrailerResolver {
         val key: String? = DEFAULT_KEY
     )
 
+    /** Tum kaynaklar paralel denenir; ilk bulan akis dondurulur. */
     suspend fun resolve(videoId: String): Stream? = withContext(Dispatchers.IO) {
         if (videoId.isBlank()) return@withContext null
-        for (spec in CLIENTS) {
-            val stream = runCatching { requestStream(spec, videoId) }.getOrNull()
-            if (stream != null) return@withContext stream
+        coroutineScope {
+            val jobs = mutableListOf<kotlinx.coroutines.Deferred<Stream?>>()
+            CLIENTS.forEach { spec ->
+                jobs += async { runCatching { requestStream(spec, videoId) }.getOrNull() }
+            }
+            PIPED_INSTANCES.forEach { instance ->
+                jobs += async { runCatching { requestFromPiped(instance, videoId) }.getOrNull() }
+            }
+            INVIDIOUS_INSTANCES.forEach { instance ->
+                jobs += async { runCatching { requestFromInvidious(instance, videoId) }.getOrNull() }
+            }
+            var found: Stream? = null
+            for (job in jobs) {
+                val result = job.await()
+                if (result != null) {
+                    found = result
+                    break
+                }
+            }
+            found
         }
-        runCatching { requestFromPiped(videoId) }.getOrNull()
     }
 
     private fun requestStream(spec: InnertubeClient, videoId: String): Stream? {
@@ -106,6 +126,7 @@ class YouTubeTrailerResolver {
                 val direct = format.optString("url")
                 if (direct.isBlank() || format.has("signatureCipher")) continue
                 val itag = format.optInt("itag", 0)
+                // itag 18 = 360p H.264 progressive, itag 22 = 720p H.264 progressive
                 if (itag == 18 || itag == 22) return Stream.Progressive(direct)
                 if (progressiveFallback == null) progressiveFallback = direct
             }
@@ -133,19 +154,15 @@ class YouTubeTrailerResolver {
         return progressiveFallback?.let { Stream.Progressive(it) }
     }
 
-    /** Innertube engellenirse acik YouTube onaylari uzerinden dener. */
-    private fun requestFromPiped(videoId: String): Stream? {
-        for (instance in PIPED_INSTANCES) {
-            val request = Request.Builder()
-                .url("$instance/streams/$videoId")
-                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0 Safari/537.36")
-                .build()
-            val body = runCatching {
-                client.newCall(request).execute().use { response -> readPiped(response) }
-            }.getOrNull()
-            if (body != null) return body
-        }
-        return null
+    /** Piped onaylari: dogrusan H.264 MP4 adresi verir. */
+    private fun requestFromPiped(instance: String, videoId: String): Stream? {
+        val request = Request.Builder()
+            .url("$instance/streams/$videoId")
+            .header("User-Agent", DESKTOP_UA)
+            .build()
+        return runCatching {
+            client.newCall(request).execute().use { response -> readPiped(response) }
+        }.getOrNull()
     }
 
     private fun readPiped(response: Response): Stream? {
@@ -166,8 +183,40 @@ class YouTubeTrailerResolver {
         return fallback?.let { Stream.Progressive(it) }
     }
 
+    /** Invidious onaylari: dogrusan H.264 MP4 adresi verir. */
+    private fun requestFromInvidious(instance: String, videoId: String): Stream? {
+        val request = Request.Builder()
+            .url("$instance/api/v1/videos/$videoId")
+            .header("User-Agent", DESKTOP_UA)
+            .build()
+        return runCatching {
+            client.newCall(request).execute().use { response -> readInvidious(response) }
+        }.getOrNull()
+    }
+
+    private fun readInvidious(response: Response): Stream? {
+        if (!response.isSuccessful) return null
+        val text = response.body?.string() ?: return null
+        val json = runCatching { JSONObject(text) }.getOrNull() ?: return null
+        val formats = json.optJSONArray("formatStreams") ?: return null
+        var fallback: String? = null
+        for (index in 0 until formats.length()) {
+            val item = formats.optJSONObject(index) ?: continue
+            val mime = item.optString("mimeType")
+            if (!mime.contains("mp4")) continue
+            val url = item.optString("url")
+            if (url.isBlank()) continue
+            if (mime.contains("avc1")) return Stream.Progressive(url)
+            if (fallback == null) fallback = url
+        }
+        return fallback?.let { Stream.Progressive(it) }
+    }
+
     companion object {
         private const val DEFAULT_KEY = "AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8"
+        private const val DESKTOP_UA =
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
+                "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
 
         private val CLIENTS = listOf(
             InnertubeClient(
@@ -198,7 +247,7 @@ class YouTubeTrailerResolver {
                 name = "WEB",
                 version = "2.20240726.00.00",
                 clientNumber = "1",
-                userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+                userAgent = DESKTOP_UA
             )
         )
 
@@ -207,6 +256,13 @@ class YouTubeTrailerResolver {
             "https://pipedapi.adminforge.de",
             "https://pipedapi.reallyaweso.me",
             "https://pipedapi.leptons.xyz"
+        )
+
+        private val INVIDIOUS_INSTANCES = listOf(
+            "https://yewtu.be",
+            "https://inv.nadeko.net",
+            "https://invidious.nerdvpn.de",
+            "https://invidious.f5.si"
         )
     }
 }

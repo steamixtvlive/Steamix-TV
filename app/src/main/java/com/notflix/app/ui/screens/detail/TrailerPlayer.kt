@@ -2,11 +2,13 @@ package com.notflix.app.ui.screens.detail
 
 import android.annotation.SuppressLint
 import android.util.Log
+import android.webkit.CookieManager
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -16,8 +18,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
@@ -30,20 +32,26 @@ import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import com.notflix.app.NotflixApplication
+import com.notflix.app.R
 import com.notflix.app.data.YouTubeTrailerResolver
+import kotlinx.coroutines.delay
 
 private const val TAG = "NotflixTrailer"
 
 /**
  * Fragman oynaticisi.
  *
- * 1) Oncelikle dogrudan H.264 MP4 akisi cozulur ve ExoPlayer ile oynatilir.
- *    (WebView + YouTube iframe, cihaz VP9/AV1 decode edemiyorsa sesi acar
- *    ama kadreleri siyah birakir.)
- * 2) Akis cozulemezse YouTube embed WebView'e dusulur; bu yol da basarisiz
- *    olursa poster gorunur, siyah ekran olusmaz.
+ * Sorun: YouTube'in WebView icindeki oynaticisi, cihaz VP9/AV1 decode
+ * edemiyorsa (emulator / BlueStacks) SADECE SES acar, kadreler siyah kalir.
  *
- * Her iki yolda da fragman bitince bastan otomatik devam eder.
+ * Cozum:
+ * 1) Once gizli bir WebView ile YouTube'un kendi oturumu kullanilarak
+ *    dogrusan H.264 (itag 18/22 progressive) adresi bulunur.
+ * 2) Bu adres ExoPlayer ile oynatilir -> gercek goruntu gelir.
+ * 3) Cozulemezse YouTube embed WebView'e dusulur (en azindan ses+gorsel).
+ * 4) O da olmazsa poster gorunur; siyah ekran olusmaz.
+ *
+ * Fragman bitince bastan otomatik devam eder.
  */
 @Composable
 fun TrailerPlayer(
@@ -58,12 +66,33 @@ fun TrailerPlayer(
 
     var stream by remember(videoKey) { mutableStateOf<YouTubeTrailerResolver.Stream?>(null) }
     var resolved by remember(videoKey) { mutableStateOf(false) }
+    var usedWebResolver by remember(videoKey) { mutableStateOf(false) }
 
+    // 1) Once uygulama ici cozumleme (hizli, IP'ye bagli degil).
     LaunchedEffect(videoKey) {
-        val found = runCatching { app.trailers.resolve(videoKey) }.getOrNull()
-        Log.d(TAG, "resolve key=$videoKey -> ${found?.javaClass?.simpleName}")
-        stream = found
-        resolved = true
+        val direct = runCatching { app.trailers.resolve(videoKey) }.getOrNull()
+        if (direct != null) {
+            Log.d(TAG, "resolve key=$videoKey -> ${direct.javaClass.simpleName}")
+            stream = direct
+            resolved = true
+            return@LaunchedEffect
+        }
+        usedWebResolver = true
+        resolved = false
+    }
+
+    // 2) Cozulemezse gizli WebView icinden YouTube oturumuyla dene.
+    if (usedWebResolver && stream == null) {
+        WebStreamResolver(
+            videoKey = videoKey,
+            onStream = { found ->
+                stream = found
+                resolved = true
+            },
+            onGaveUp = {
+                resolved = true
+            }
+        )
     }
 
     val current = stream
@@ -75,7 +104,7 @@ fun TrailerPlayer(
             onFailed = onFailed,
             modifier = modifier
         )
-        resolved -> TrailerWebView(
+        resolved -> TrailerEmbedWebView(
             videoKey = videoKey,
             playing = playing,
             soundOn = soundOn,
@@ -121,7 +150,6 @@ private fun TrailerExoPlayer(
         }
         ExoPlayer.Builder(context).build().apply {
             setMediaSource(source)
-            // Fragman bitince bastan otomatik devam eder.
             repeatMode = Player.REPEAT_MODE_ONE
             volume = 0f
             playWhenReady = true
@@ -153,11 +181,10 @@ private fun TrailerExoPlayer(
     AndroidView(
         modifier = modifier,
         factory = { ctx ->
-            PlayerView(ctx).apply {
-                useController = false
+            (android.view.LayoutInflater.from(ctx)
+                .inflate(R.layout.notflix_trailer_player, null) as PlayerView).apply {
                 resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
                 setShowBuffering(PlayerView.SHOW_BUFFERING_NEVER)
-                setBackgroundColor(android.graphics.Color.BLACK)
                 this.player = player
             }
         },
@@ -165,8 +192,107 @@ private fun TrailerExoPlayer(
     )
 }
 
+/**
+ * YouTube'un kendi oturumunu kullanan gizli WebView: watch sayfasi yuklenir,
+ * sayfa icinden player API cagrilir ve dogrusan H.264 adresi alinir.
+ */
+@SuppressLint("SetJavaScriptEnabled")
 @Composable
-private fun TrailerWebView(
+private fun WebStreamResolver(
+    videoKey: String,
+    onStream: (YouTubeTrailerResolver.Stream) -> Unit,
+    onGaveUp: () -> Unit
+) {
+    val onStreamState = rememberUpdatedState(onStream)
+    val onGaveUpState = rememberUpdatedState(onGaveUp)
+    var finished by remember(videoKey) { mutableStateOf(false) }
+
+    AndroidView(
+        modifier = Modifier.size(1.dp),
+        factory = { ctx ->
+            WebView(ctx).apply {
+                settings.javaScriptEnabled = true
+                settings.domStorageEnabled = true
+                settings.mediaPlaybackRequiresUserGesture = false
+                settings.userAgentString = DESKTOP_UA
+                settings.cacheMode = android.webkit.WebSettings.LOAD_DEFAULT
+                CookieManager.getInstance().setAcceptCookie(true)
+                CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
+                addJavascriptInterface(
+                    ResolverBridge(
+                        onStream = { payload ->
+                            val parsed = parseStreamPayload(payload)
+                            if (parsed != null) {
+                                finished = true
+                                onStreamState.value(parsed)
+                            }
+                        },
+                        onError = {
+                            finished = true
+                            onGaveUpState.value()
+                        }
+                    ),
+                    "NotflixResolver"
+                )
+                webViewClient = object : WebViewClient() {
+                    override fun onPageFinished(view: WebView, url: String) {
+                        view.evaluateJavascript(resolverScript(videoKey), null)
+                    }
+                }
+                loadUrl("https://www.youtube.com/watch?v=$videoKey")
+            }
+        },
+        onRelease = { view ->
+            view.removeJavascriptInterface("NotflixResolver")
+            view.stopLoading()
+            view.destroy()
+        }
+    )
+
+    LaunchedEffect(videoKey) {
+        var waited = 0
+        while (waited < 20_000 && !finished) {
+            delay(500)
+            waited += 500
+        }
+        if (!finished) onGaveUpState.value()
+    }
+}
+
+private fun parseStreamPayload(payload: String): YouTubeTrailerResolver.Stream? {
+    return runCatching {
+        val json = org.json.JSONObject(payload)
+        when (json.optString("type")) {
+            "p" -> YouTubeTrailerResolver.Stream.Progressive(json.getString("url"))
+            "a" -> YouTubeTrailerResolver.Stream.Adaptive(
+                json.getString("v"),
+                json.getString("a")
+            )
+            else -> null
+        }
+    }.getOrNull()
+}
+
+private class ResolverBridge(
+    private val onStream: (String) -> Unit,
+    private val onError: () -> Unit
+) {
+    @JavascriptInterface
+    fun trailerStream(payload: String) {
+        onStream(payload)
+    }
+
+    @JavascriptInterface
+    fun trailerResolveError() {
+        onError()
+    }
+}
+
+/**
+ * YouTube embed WebView: dogrudan embed adresi iframe icinde, iframe_api yok.
+ */
+@Composable
+private fun TrailerEmbedWebView(
     videoKey: String,
     playing: Boolean,
     soundOn: Boolean,
@@ -175,15 +301,14 @@ private fun TrailerWebView(
 ) {
     val soundOnState = rememberUpdatedState(soundOn)
     val holder = remember(videoKey) { arrayOfNulls<WebView>(1) }
+    var reported by remember(videoKey) { mutableStateOf(false) }
 
     androidx.compose.runtime.key(videoKey) {
         AndroidView(
             modifier = modifier,
             factory = { ctx ->
                 WebView(ctx).apply {
-                    // Saydam arka plan: video gelmezse poster gorunur, siyah kutu olusmaz.
                     setBackgroundColor(android.graphics.Color.TRANSPARENT)
-                    setLayerType(android.view.View.LAYER_TYPE_NONE, null)
                     isFocusable = false
                     isFocusableInTouchMode = false
                     isClickable = false
@@ -213,14 +338,8 @@ private fun TrailerWebView(
                         TrailerBridge(
                             onPlaying = {
                                 post {
-                                    holder[0]?.evaluateJavascript(
-                                        if (soundOnState.value) {
-                                            "try{if(player){player.unMute();player.setVolume(100);}}catch(e){}"
-                                        } else {
-                                            "try{if(player){player.mute();}}catch(e){}"
-                                        },
-                                        null
-                                    )
+                                    reported = true
+                                    applySound(holder[0], soundOnState.value)
                                 }
                             },
                             onFailed = { code ->
@@ -233,8 +352,8 @@ private fun TrailerWebView(
                         "NotflixBridge"
                     )
                     loadDataWithBaseURL(
-                        "https://filmmodu.news/",
-                        trailerHtml(videoKey),
+                        EMBED_ORIGIN,
+                        embedHtml(videoKey),
                         "text/html",
                         "UTF-8",
                         null
@@ -252,22 +371,31 @@ private fun TrailerWebView(
         )
     }
 
-    LaunchedEffect(playing) {
-        val js = if (playing) {
-            "try{if(window.player&&player.playVideo){player.playVideo();}}catch(e){}"
-        } else {
-            "try{if(window.player&&player.pauseVideo){player.pauseVideo();}}catch(e){}"
+    LaunchedEffect(videoKey) {
+        var waited = 0
+        while (waited < 14_000) {
+            delay(500)
+            waited += 500
+            if (reported) break
         }
-        holder[0]?.evaluateJavascript(js, null)
+        if (!reported) {
+            Log.d(TAG, "webview timeout key=$videoKey")
+            onFailed()
+        }
+    }
+
+    LaunchedEffect(playing) {
+        val func = if (playing) "playVideo" else "pauseVideo"
+        holder[0]?.evaluateJavascript("try{command('$func');}catch(e){}", null)
     }
     LaunchedEffect(soundOn) {
-        val js = if (soundOn) {
-            "try{if(window.player){player.unMute();player.setVolume(100);}}catch(e){}"
-        } else {
-            "try{if(window.player){player.mute();}}catch(e){}"
-        }
-        holder[0]?.evaluateJavascript(js, null)
+        applySound(holder[0], soundOn)
     }
+}
+
+private fun applySound(webView: WebView?, soundOn: Boolean) {
+    val func = if (soundOn) "unMute" else "mute"
+    webView?.evaluateJavascript("try{command('$func');}catch(e){}", null)
 }
 
 private class TrailerBridge(
@@ -285,9 +413,66 @@ private class TrailerBridge(
     }
 }
 
+private const val DESKTOP_UA =
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
+        "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+
+private const val EMBED_ORIGIN = "https://www.youtube.com/"
+
+/** Watch sayfasindan dogrusan H.264 adresi arayan script. */
 @SuppressLint("SetJavaScriptEnabled")
-private fun trailerHtml(videoKey: String): String {
-    return """
+private fun resolverScript(videoKey: String): String = """
+(function(){
+  var vid='$videoKey';
+  function send(o){ try{ NotflixResolver.trailerStream(JSON.stringify(o)); }catch(e){} }
+  function fail(){ try{ NotflixResolver.trailerResolveError(); }catch(e){} }
+  var tries=0;
+  function attempt(){
+    tries++;
+    var ctx=null, key=null;
+    try{
+      if(window.ytcfg&&ytcfg.get){
+        ctx=ytcfg.get('INNERTUBE_CONTEXT');
+        key=ytcfg.get('INNERTUBE_API_KEY');
+      }
+    }catch(e){}
+    if(!ctx){ if(tries<40){ setTimeout(attempt,300); } else { fail(); } return; }
+    var body={context:ctx,videoId:vid,contentCheckOk:true,racyCheckOk:true};
+    var url='/youtubei/v1/player?prettyPrint=false'+(key?('&key='+key):'');
+    fetch(url,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      credentials:'include',
+      body:JSON.stringify(body)
+    }).then(function(r){return r.json();}).then(function(j){
+      var sd=j.streamingData||{};
+      var fmt=sd.formats||[];
+      var prog=null;
+      for(var i=0;i<fmt.length;i++){
+        var f=fmt[i];
+        if(f.mimeType&&f.mimeType.indexOf('video/mp4')===0&&f.url&&!f.signatureCipher){
+          if(f.itag===18||f.itag===22){prog=f;break;}
+          if(!prog)prog=f;
+        }
+      }
+      if(prog){ send({type:'p',url:prog.url}); return; }
+      var ad=sd.adaptiveFormats||[],v=null,a=null;
+      for(var k=0;k<ad.length;k++){
+        var g=ad[k];
+        if(!g.url||g.signatureCipher) continue;
+        if(g.mimeType&&g.mimeType.indexOf('video/mp4')===0&&g.mimeType.indexOf('avc1')>=0&&!v) v=g;
+        if(g.mimeType&&g.mimeType.indexOf('audio/mp4')===0&&!a) a=g;
+      }
+      if(v&&a){ send({type:'a',v:v.url,a:a.url}); return; }
+      fail();
+    }).catch(function(){ fail(); });
+  }
+  attempt();
+})();
+""".trimIndent()
+
+@SuppressLint("SetJavaScriptEnabled")
+private fun embedHtml(videoKey: String): String = """
 <!DOCTYPE html>
 <html>
 <head>
@@ -295,104 +480,31 @@ private fun trailerHtml(videoKey: String): String {
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
-html,body{margin:0;padding:0;height:100%;background:#000;overflow:hidden;}
-#wrap{position:absolute;top:0;left:0;width:100%;height:100%;overflow:hidden;background:#000;}
-#player{position:absolute;top:0;left:0;width:100%;height:100%;}
-#player iframe{width:100%;height:100%;border:0;}
+html,body{margin:0;padding:0;height:100%;background:transparent;overflow:hidden;}
+#yt{position:absolute;top:0;left:0;width:100%;height:100%;border:0;}
 </style>
 </head>
 <body>
-<div id="wrap"><div id="player"></div></div>
+<iframe id="yt" allow="autoplay; encrypted-media; fullscreen" allowfullscreen
+  src="https://www.youtube.com/embed/$videoKey?autoplay=1&mute=1&playsinline=1&controls=0&rel=0&modestbranding=1&iv_load_policy=3&enablejsapi=1&loop=1&playlist=$videoKey"></iframe>
 <script>
-var player=null;
-var started=false;
-var retried=false;
-var apiLoaded=false;
-function bridgePlaying(){
-  if(started) return;
-  started=true;
-  try{NotflixBridge.trailerPlaying();}catch(err){}
+function command(func,args){
+  var f=document.getElementById('yt');
+  if(!f||!f.contentWindow) return;
+  try{ f.contentWindow.postMessage(JSON.stringify({event:'command',func:func,args:args||[]}),'*'); }catch(e){}
 }
-function fail(code){
-  try{NotflixBridge.trailerFailed(String(code||'unknown'));}catch(err){}
-}
-function kick(){
-  if(!player) return;
-  try{player.mute();player.playVideo();}catch(err){}
-}
-function onYouTubeIframeAPIReady(){
-  apiLoaded=true;
-  player=new YT.Player('player',{
-    videoId:'$videoKey',
-    host:'https://www.youtube.com',
-    playerVars:{
-      autoplay:1,controls:0,modestbranding:1,rel:0,playsinline:1,fs:0,
-      disablekb:1,iv_load_policy:3,showinfo:0,cc_load_policy:0,
-      origin:'https://filmmodu.news',enablejsapi:1,mute:1,loop:1,
-      widget_referrer:'https://filmmodu.news/'
-    },
-    events:{
-      onReady:function(e){
-        kick();
-        setTimeout(kick,500);
-        setTimeout(function(){
-          var state=-1;
-          try{state=e.target.getPlayerState();}catch(err){}
-          if(started||state===1||state===3) return;
-          if(!retried){
-            retried=true;
-            try{e.target.loadVideoById('$videoKey');}catch(err){}
-            kick();
-            setTimeout(function(){
-              if(!started) fail('timeout');
-            },5000);
-          }else{
-            fail('timeout');
-          }
-        },6000);
-      },
-      onStateChange:function(e){
-        if(!e) return;
-        if(e.data===0){
-          try{e.target.seekTo(0);e.target.playVideo();}catch(err){}
-          return;
-        }
-        if(e.data===1||e.data===3){
-          try{e.target.playVideo();}catch(err){}
-          if(e.data===1){
-            setTimeout(function(){
-              var s=-1;
-              try{s=player.getPlayerState();}catch(err){}
-              if(s===1||s===3) bridgePlaying();
-            },450);
-          }
-        }
-      },
-      onAutoplayBlocked:function(e){
-        kick();
-      },
-      onError:function(e){
-        var code=e&&e.data;
-        if((code===2||code===5)&&!retried){
-          retried=true;
-          setTimeout(function(){
-            try{player.loadVideoById('$videoKey');}catch(err){}
-            kick();
-          },900);
-          return;
-        }
-        fail(code);
-      }
-    }
-  });
-}
-var tag=document.createElement('script');
-tag.src='https://www.youtube.com/iframe_api';
-tag.onerror=function(){fail('api-script');};
-document.head.appendChild(tag);
-setTimeout(function(){if(!apiLoaded) fail('api-timeout');},15000);
+window.addEventListener('message',function(e){
+  var d=null;
+  try{ d=JSON.parse(e.data); }catch(err){ return; }
+  if(!d) return;
+  if(d.event==='onStateChange'&&d.info){
+    var s=d.info.playerState;
+    if(s===1||s===3){ try{NotflixBridge.trailerPlaying();}catch(err){} }
+    else if(s===-1){ try{NotflixBridge.trailerFailed('embed-error');}catch(err){} }
+  }
+});
+setTimeout(function(){ try{NotflixBridge.trailerFailed('embed-timeout');}catch(err){} },20000);
 </script>
 </body>
 </html>
 """.trimIndent()
-}
