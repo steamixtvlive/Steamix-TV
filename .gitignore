@@ -1,0 +1,24 @@
+# Gradle / Android build
+.gradle/
+.kotlin/
+build/
+app/build/
+local.properties
+*.apk
+*.aab
+*.jks
+*.keystore
+
+# Editor / OS
+.idea/
+*.iml
+.DS_Store
+Thumbs.db
+
+# Captures / temp
+screen*.png
+intro*.png
+*.png.bak
+
+# Keep update manifest tracked
+!update.json
