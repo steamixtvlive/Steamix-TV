@@ -938,8 +938,8 @@ private fun TrailerBackdrop(
             modifier = modifier,
             factory = { ctx ->
                 WebView(ctx).apply {
-                    setBackgroundColor(android.graphics.Color.TRANSPARENT)
-                    setLayerType(android.view.View.LAYER_TYPE_HARDWARE, null)
+                    setBackgroundColor(android.graphics.Color.BLACK)
+                    setLayerType(android.view.View.LAYER_TYPE_SOFTWARE, null)
                     isFocusable = false
                     isFocusableInTouchMode = false
                     isClickable = false
@@ -1046,7 +1046,7 @@ private fun trailerHtml(videoKey: String): String {
 <style>
 html,body{margin:0;padding:0;height:100%;background:transparent;overflow:hidden;}
 #wrap{position:absolute;top:0;left:0;width:100%;height:100%;overflow:hidden;background:transparent;}
-#player{position:absolute;top:-9%;left:-9%;width:118%;height:118%;}
+#player{position:absolute;top:0;left:0;width:100%;height:100%;}
 #player iframe{width:100%;height:100%;border:0;}
 </style>
 </head>
