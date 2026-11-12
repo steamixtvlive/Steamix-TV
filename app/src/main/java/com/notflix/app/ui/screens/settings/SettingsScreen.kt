@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.sp
 import coil.Coil
 import com.notflix.app.BuildConfig
 import com.notflix.app.NotflixApplication
+import com.notflix.app.data.UpdateResult
 import com.notflix.app.ui.components.ScreenTitleBar
 import com.notflix.app.ui.components.isTvLayout
 import com.notflix.app.ui.components.screenPadding
@@ -63,6 +64,7 @@ fun SettingsScreen(
 
     var liveRefreshBusy by remember { mutableStateOf(false) }
     var cacheBusy by remember { mutableStateOf(false) }
+    var updateBusy by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxSize()) {
         ScreenTitleBar(
@@ -195,6 +197,26 @@ fun SettingsScreen(
                                     }
                                     cacheBusy = false
                                     message = "Görseller temizlendi."
+                                }
+                            }
+                        }
+                    )
+ActionRow(
+                        title = "Güncellemeyi denetle",
+                        subtitle = if (updateBusy) "Denetleniyor…" else "Yeni sürüm var mı bakılır.",
+                        busy = updateBusy,
+                        onClick = {
+                            if (!updateBusy) {
+                                updateBusy = true
+                                message = null
+                                scope.launch {
+                                    message = when (val result = app.updates.checkLatest(BuildConfig.VERSION_CODE)) {
+                                        is UpdateResult.UpToDate -> "Uygulama güncel."
+                                        is UpdateResult.Available -> "Yeni sürüm mevcut: ${result.info.versionName}."
+                                        is UpdateResult.Failed -> "Güncelleme denetlenemedi."
+                                        UpdateResult.NotConfigured -> "Güncelleme yapılandırılmamış."
+                                    }
+                                    updateBusy = false
                                 }
                             }
                         }

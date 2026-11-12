@@ -935,7 +935,7 @@ private fun TrailerBackdrop(
     val holder = remember(videoKey) { arrayOfNulls<WebView>(1) }
     key(videoKey) {
         AndroidView(
-            modifier = modifier.alpha(fade),
+            modifier = modifier,
             factory = { ctx ->
                 WebView(ctx).apply {
                     setBackgroundColor(android.graphics.Color.TRANSPARENT)
