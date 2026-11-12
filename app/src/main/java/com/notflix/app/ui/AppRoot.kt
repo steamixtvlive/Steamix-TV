@@ -68,7 +68,7 @@ private sealed interface Screen {
 
 private val TABS = listOf(
     NavTab("home", "Ana Sayfa"),
-    NavTab("discover", "Keşfet"),
+    NavTab("discover", "Tavsiye"),
     NavTab("series", "Diziler"),
     NavTab("movies", "Filmler"),
     NavTab("live", "Canlı TV"),

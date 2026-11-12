@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+html, body { margin: 0; padding: 0; background: #000; height: 100%; overflow: hidden; }
+#player { position: absolute; top: 50%; left: 50%; width: 200%; height: 200%; transform: translate(-50%, -50%); filter: brightness(1.18) contrast(1.12) saturate(1.14); }
+video { filter: brightness(1.18) contrast(1.12) saturate(1.14); }
+</style>
+</head>
+<body>
+<div id="player"></div>
+<script src="https://www.youtube.com/iframe_api"></script>
+<script>
+var __playing = false;
+var __player = null;
+var __redirected = false;
+
+function slog(m) { try { Android.log(m); } catch (e) {} }
+
+function redirectToWatch() {
+  if (__redirected) { return; }
+  __redirected = true;
+  slog('redirecting to m.youtube.com/watch');
+  window.location.href = 'https://m.youtube.com/watch?v=__VIDEO_ID__&autoplay=1&mute=1&playsinline=1&rel=0&loop=1';
+}
+
+function onYouTubeIframeAPIReady() {
+  slog('iframe-api-ready');
+  try {
+    __player = new YT.Player('player', {
+      videoId: '__VIDEO_ID__',
+      playerVars: {
+        autoplay: 1, mute: 1, controls: 0, loop: 1, playlist: '__VIDEO_ID__',
+        modestbranding: 1, rel: 0, playsinline: 1, fs: 0, iv_load_policy: 3, disablekb: 1
+      },
+      events: {
+        onReady: function (e) {
+          slog('player-ready');
+          try { e.target.playVideo(); } catch (err) {}
+        },
+        onStateChange: function (e) {
+          slog('state:' + e.data);
+          if (e.data === 1) {
+            __playing = true;
+            try { Android.notifyPlaying(); } catch (err) {}
+          }
+          if (e.data === 0) {
+            try { e.target.seekTo(0, true); e.target.playVideo(); } catch (err) {}
+          }
+        },
+        onError: function (e) {
+          slog('player-error:' + (e.data !== undefined ? e.data : '?'));
+          redirectToWatch();
+        }
+      }
+    });
+  } catch (err) {
+    redirectToWatch();
+  }
+}
+
+setTimeout(function () {
+  if (!__playing) { redirectToWatch(); }
+}, 6000);
+
+setTimeout(function () {
+  if (!__playing) { try { Android.notifyPlayerError(); } catch (e) {} }
+}, 24000);
+</script>
+</body>
+</html>

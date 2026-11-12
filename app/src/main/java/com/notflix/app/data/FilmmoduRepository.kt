@@ -548,7 +548,52 @@ class FilmmoduRepository {
                 group.forEach { ordered += it.optString("key") }
             }
         }
-        return ordered.take(6)
+        // Gömülemeyen videolar (152-4/153) oynaticida siyah ekran birakir; onlar elenir.
+        val playable = ordered.filter { isEmbeddable(it) }
+        if (playable.isNotEmpty()) return playable.take(6)
+        // TMDB sonucu yoksa YouTube aramasina dus.
+        val searched = searchTrailerOnYoutube(title)
+        return (searched + ordered).filter { isEmbeddable(it) }.take(6)
+    }
+
+    /** YouTube Data API ile "<baslik> official trailer" aramasi. */
+    private fun searchTrailerOnYoutube(title: String): List<String> {
+        val query = URLEncoder.encode("${title.trim()} official trailer", "UTF-8")
+        val url = "https://www.googleapis.com/youtube/v3/search?part=snippet" +
+            "&q=$query&type=video&maxResults=3&key=$YOUTUBE_API_KEY"
+        val body = runCatching { tmdbGet(url) }.getOrNull() ?: return emptyList()
+        val items = runCatching { JSONObject(body).optJSONArray("items") }.getOrNull() ?: return emptyList()
+        return (0 until items.length()).mapNotNull { index ->
+            items.optJSONObject(index)
+                ?.optJSONObject("id")
+                ?.optString("videoId")
+                ?.takeIf { it.isNotBlank() }
+        }
+    }
+
+    /**
+     * YouTube gomulmesini kapatilan videolari eler. oEmbed cevabi "html" alani
+     * icermiyorsa ya da 401/403 donuyorsa gomulemez.
+     */
+    private fun isEmbeddable(videoId: String): Boolean {
+        return runCatching {
+            val oembedUrl = "https://www.youtube.com/oembed?url=" +
+                "${URLEncoder.encode("https://www.youtube.com/watch?v=$videoId", "UTF-8")}&format=json"
+            val request = Request.Builder()
+                .url(oembedUrl)
+                .header("Accept", "application/json")
+                .build()
+            tmdbClient.newCall(request).execute().use { response ->
+                when {
+                    response.code == 401 || response.code == 403 -> return false
+                    response.code in 200..299 -> {
+                        val text = response.body?.string().orEmpty()
+                        if (!text.contains("\"html\"")) return false
+                    }
+                }
+            }
+            true
+        }.getOrDefault(true)
     }
 
     private fun tmdbGet(url: String): String {
@@ -1022,6 +1067,7 @@ class FilmmoduRepository {
         private const val TAG = "NotflixCatalog"
         private const val BASE = "https://filmmodu.news"
         private const val TMDB_KEY = "21e3ff1da3bd38d1f167560193503c34"
+        private const val YOUTUBE_API_KEY = "AIzaSyDAivPXYp-wdmN2AmL7HUXvf4wHP2o9dHQ"
         private const val TMDB_TOKEN =
             "eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiIyMWUzZmYxZGEzYmQzOGQxZjE2NzU2MDE5MzUwM2MzNCIsIm5iZiI6MTc5MzQ0MDIxOS4wNjIsInN1YiI6IjZhZTViOWRiZDU4ZTI5MGIxMmM4YWUzOSIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.FxLyGjSG37R3qK1J1S_vyoyL3u3Q-7yVlp56ddPFHzM"
         private const val HERO_SIZE = 24

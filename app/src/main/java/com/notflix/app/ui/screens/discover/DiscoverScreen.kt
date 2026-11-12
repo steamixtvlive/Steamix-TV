@@ -267,7 +267,7 @@ private fun DiscoverRail(
             .padding(horizontal = 22.dp, vertical = 24.dp)
     ) {
         Text(
-            text = "KEŞFET",
+            text = "TAVSİYE ROBOTU",
             color = NotflixColors.AccentSoft,
             fontSize = 10.sp,
             fontWeight = FontWeight.Bold,
@@ -275,16 +275,17 @@ private fun DiscoverRail(
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "Sen seç,\nbiz getirelim.",
-            style = MaterialTheme.typography.headlineMedium,
+            text = "Ne izlesem?",
+            style = MaterialTheme.typography.displaySmall,
             color = NotflixColors.TextPrimary,
-            lineHeight = 34.sp
+            lineHeight = 36.sp
         )
-        Spacer(modifier = Modifier.height(6.dp))
+        Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "Dört adımda zevkine uygun yapımı bul.",
-            color = NotflixColors.TextMuted,
-            fontSize = 12.sp
+            text = "Birkaç soruya cevap ver; zevkine göre film, dizi ve anime önerelim. Üyelik gerekmez, 30 saniye sürer.",
+            color = NotflixColors.TextSecondary,
+            fontSize = 12.sp,
+            lineHeight = 18.sp
         )
         Spacer(modifier = Modifier.height(22.dp))
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -396,12 +397,12 @@ private fun DiscoverHeader(step: Int) {
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = "Keşfet",
+                text = "Tavsiye Robotu",
                 style = MaterialTheme.typography.headlineSmall,
                 color = NotflixColors.TextPrimary
             )
             Text(
-                text = "Zevkine uygun yapımı bul",
+                text = "Ne izlesem? Birkaç soru, 30 saniye.",
                 color = NotflixColors.TextMuted,
                 fontSize = 11.sp
             )
@@ -785,7 +786,7 @@ private fun ResultGrid(
                     fontSize = 11.sp
                 )
             }
-            NotflixButton(text = "Yeniden Seç", primary = false, onClick = onRestart)
+            NotflixButton(text = "Yeniden Başlat", primary = false, onClick = onRestart)
         }
         Box(modifier = Modifier.fillMaxSize()) {
             when {

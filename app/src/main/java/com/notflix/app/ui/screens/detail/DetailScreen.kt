@@ -462,7 +462,7 @@ private fun DetailHero(
     var trailerIndex by remember(detail.url) { mutableIntStateOf(0) }
     var trailerFailed by remember(detail.url) { mutableStateOf(false) }
     var trailerPlaying by remember(detail.url) { mutableStateOf(true) }
-    var trailerSoundOn by remember(detail.url) { mutableStateOf(true) }
+    var trailerSoundOn by remember(detail.url) { mutableStateOf(false) }
 
     LaunchedEffect(detail.url) {
         trailerKeys = runCatching {
@@ -491,7 +491,7 @@ private fun DetailHero(
                     if (trailerIndex + 1 < trailerKeys.size) {
                         trailerIndex += 1
                         trailerPlaying = true
-                        trailerSoundOn = true
+                        trailerSoundOn = false
                     } else {
                         trailerFailed = true
                     }
@@ -501,7 +501,7 @@ private fun DetailHero(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.16f))
+                    .background(Color.Black.copy(alpha = 0.10f))
             )
         }
         Box(
