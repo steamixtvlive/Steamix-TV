@@ -41,6 +41,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.Coil
@@ -216,6 +217,11 @@ ActionRow(
                 }
             }
 
+            item(key = "dev-head") { SectionHeader("Geliştirici RENDIR MEDİA") }
+            item(key = "dev-card") {
+                DeveloperCard()
+            }
+
             item(key = "update-head") { SectionHeader("Güncelleme") }
             item(key = "update-card") {
                 UpdateCard(
@@ -341,6 +347,50 @@ private fun UpdateCard(
             color = NotflixColors.TextMuted,
             fontSize = 10.5.sp,
             lineHeight = 15.sp
+        )
+    }
+}
+
+@Composable
+private fun DeveloperCard() {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = screenPadding())
+            .clip(RoundedCornerShape(12.dp))
+            .background(NotflixColors.Elevated)
+            .border(1.dp, NotflixColors.LineSoft, RoundedCornerShape(12.dp))
+            .padding(horizontal = 15.dp, vertical = 14.dp)
+    ) {
+        DeveloperRow("Uygulama", "NOTFLİX")
+        DeveloperRow("Sürüm", "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
+        DeveloperRow("Paket", BuildConfig.APPLICATION_ID)
+        DeveloperRow("Hedef", "Android ${android.os.Build.VERSION.RELEASE} · API ${android.os.Build.VERSION.SDK_INT}")
+        DeveloperRow("Kaynak", "TMDB + NOTFLİX")
+    }
+}
+
+@Composable
+private fun DeveloperRow(label: String, value: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = label,
+            color = NotflixColors.TextMuted,
+            fontSize = 11.5.sp,
+            modifier = Modifier.width(92.dp)
+        )
+        Text(
+            text = value,
+            color = NotflixColors.TextPrimary,
+            fontSize = 11.5.sp,
+            fontWeight = FontWeight.Medium,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
         )
     }
 }

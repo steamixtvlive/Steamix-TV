@@ -105,6 +105,8 @@ fun TrailerPlayer(
     }
 
     // Ses / oynatma durumu degistiginde oynaticiya ilet.
+    // NOT: Oynatici kendi durumunu (mute) sonradan degistirirse uygulama
+    // durumunu korur; ses yalnizca kullanicinin istegiyle degisir.
     LaunchedEffect(soundOn, playing, ready) {
         val view = webView ?: return@LaunchedEffect
         sendControl(view, !soundOnState.value, playingState.value)

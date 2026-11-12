@@ -34,7 +34,7 @@
       document.body.style.overflow = 'hidden';
     } catch (e) {}
 
-    if (typeof window.__svMuted === 'undefined') { window.__svMuted = true; }
+    if (typeof window.__svMuted === 'undefined') { window.__svMuted = false; }
     if (typeof window.__svPaused === 'undefined') { window.__svPaused = false; }
     window.__svNoVideo = true;
     if (!v) { return; }
@@ -42,8 +42,7 @@
 
     try {
       v.loop = true;
-      v.muted = !!window.__svMuted;
-      if (!window.__svMuted) { v.volume = 1; }
+      // Ses durumu sadece uygulama tarafindan yonetilir; burada degistirme.
       v.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;' +
         'object-fit:cover;z-index:1;background:#000;' +
         'filter:brightness(1.18) contrast(1.12) saturate(1.14);';

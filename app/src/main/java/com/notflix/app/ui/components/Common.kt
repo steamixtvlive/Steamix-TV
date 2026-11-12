@@ -20,6 +20,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -39,12 +40,14 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.Search
@@ -68,6 +71,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
@@ -122,11 +126,16 @@ fun NotflixTopBar(
 ) {
     val tv = isTvLayout()
     val pad = screenPadding()
-    Box(
+    val tabScroll = rememberScrollState()
+    val scope = rememberCoroutineScope()
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxWidth()
             .background(Color(0xF20A0A0A))
     ) {
+        // Sekmeler sigmazsa kaydirma oklari gosterilir.
+        val available = maxWidth - (if (tv) 320.dp else 210.dp)
+        val overflow = tabs.sumOf { it.label.length } * (if (tv) 9 else 7) > available.value.toInt()
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -146,10 +155,18 @@ fun NotflixTopBar(
                 NotflixWordmark(width = if (tv) 104.dp else 72.dp, glow = true)
             }
             Spacer(modifier = Modifier.width(if (tv) 28.dp else 12.dp))
+            if (overflow) {
+                OverflowArrow(
+                    icon = Icons.Filled.KeyboardArrowLeft,
+                    contentDescription = "Sekmeleri geri kaydır",
+                    onClick = { scope.launch { tabScroll.animateScrollBy(-220f) } }
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+            }
             Row(
                 modifier = Modifier
                     .weight(1f)
-                    .horizontalScroll(rememberScrollState()),
+                    .horizontalScroll(tabScroll),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(if (tv) 22.dp else 4.dp)
             ) {
@@ -160,6 +177,15 @@ fun NotflixTopBar(
                         onClick = { onTabSelected(tab.id) }
                     )
                 }
+            }
+            if (overflow) {
+                Spacer(modifier = Modifier.width(4.dp))
+                OverflowArrow(
+                    icon = Icons.Filled.KeyboardArrowRight,
+                    contentDescription = "Sekmeleri ileri kaydır",
+                    onClick = { scope.launch { tabScroll.animateScrollBy(220f) } }
+                )
+                Spacer(modifier = Modifier.width(4.dp))
             }
             Spacer(modifier = Modifier.width(8.dp))
             IconAction(Icons.Outlined.Search, "Ara", onSearch)
@@ -172,6 +198,40 @@ fun NotflixTopBar(
                 .fillMaxWidth()
                 .height(1.dp)
                 .background(Color.White.copy(alpha = 0.06f))
+        )
+    }
+}
+
+/** Sekme listesi tasarsa gosterilen kaydirma oku. */
+@Composable
+private fun OverflowArrow(
+    icon: ImageVector,
+    contentDescription: String,
+    onClick: () -> Unit
+) {
+    var focused by remember { mutableStateOf(false) }
+    Box(
+        modifier = Modifier
+            .size(if (isTvLayout()) 34.dp else 28.dp)
+            .clip(CircleShape)
+            .background(
+                if (focused) NotflixColors.Accent.copy(alpha = 0.55f)
+                else Color.White.copy(alpha = 0.07f)
+            )
+            .border(
+                1.dp,
+                if (focused) Color.White.copy(alpha = 0.85f) else Color.White.copy(alpha = 0.14f),
+                CircleShape
+            )
+            .onFocusChanged { focused = it.isFocused }
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = contentDescription,
+            tint = Color.White,
+            modifier = Modifier.size(if (isTvLayout()) 20.dp else 17.dp)
         )
     }
 }

@@ -1,6 +1,6 @@
 {
-  "versionCode": 3,
-  "versionName": "1.0.1",
+  "versionCode": 4,
+  "versionName": "1.0.0",
   "apkUrl": "https://github.com/steamixtvlive/Steamix-TV/releases/latest/download/notflix.apk",
-  "notes": "Fragman oynatıcısı düzeltildi (siyah ekran giderildi), ses ve oynat/durdur düğmeleri çalışıyor, fragman otomatik döngüye girdi. Ayarlarda modern güncelleme bölümü, giriş ekranı ve Tavsiye Robotu eklendi."
+  "notes": "Nav sekmeleri TV'de sığmadığında kaydırma okları eklendi. Canlı TV oynatıcı kontrolleri kumandayla kullanılabilir oldu, sağ ok kanal listesini açıyor, ESC/Geri paneli kapatıyor. Kanal adı ekranın tam ortasında (logosuz) gösteriliyor. Detay ekranında yukarı tuşu sayfayı kaydırıyor, fragman sesi kendiliğinden kapanmıyor. Ayarlara Geliştirici RENDIR MEDİA bilgi bölümü eklendi."
 }

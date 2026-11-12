@@ -584,21 +584,19 @@ fun PlayerScreen(
             .focusable()
             .onPreviewKeyEvent { event ->
                 if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
-                if (panelOpen || qualityOpen || aspectOpen) return@onPreviewKeyEvent false
                 if (errorText != null) return@onPreviewKeyEvent false
-                // While the controls are hidden the whole screen is "fullscreen TV mode":
-                // Up/Down zap channels on capable devices instead of changing volume.
-                if (isLive && !controlsVisible) {
-                    when (event.key) {
-                        Key.DirectionUp -> {
-                            zap(1)
-                            true
-                        }
-                        Key.DirectionDown -> {
-                            zap(-1)
-                            true
-                        }
-                        else -> false
+                // Panel acikken kumanda panelin icinde gezinir; GERI/ESC kapatir.
+                if (panelOpen || qualityOpen || aspectOpen) {
+                    val native = event.nativeKeyEvent
+                    if (native.keyCode == android.view.KeyEvent.KEYCODE_BACK ||
+                        native.keyCode == android.view.KeyEvent.KEYCODE_ESCAPE
+                    ) {
+                        panelOpen = false
+                        qualityOpen = false
+                        aspectOpen = false
+                        true
+                    } else {
+                        false
                     }
                 } else {
                     false
@@ -608,29 +606,56 @@ fun PlayerScreen(
                 if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
                 if (panelOpen || qualityOpen || aspectOpen) return@onKeyEvent false
                 if (errorText != null) return@onKeyEvent false
-                controlsVisible = true
-                when (event.key) {
-                    Key.DirectionLeft -> {
-                        if (isLive) changeVolume(-0.1f) else seekBy(-10_000)
-                        true
+                // Kontroller gizliyken ekran tam ekran modundadir:
+                // yukarı/asagi kanal degistirir, kumandada gezinilir.
+                if (!controlsVisible) {
+                    when (event.key) {
+                        Key.DirectionUp -> {
+                            if (isLive) zap(1) else controlsVisible = true
+                            true
+                        }
+                        Key.DirectionDown -> {
+                            if (isLive) zap(-1) else controlsVisible = true
+                            true
+                        }
+                        Key.DirectionLeft, Key.DirectionRight -> {
+                            controlsVisible = true
+                            true
+                        }
+                        else -> false
                     }
-                    Key.DirectionRight -> {
-                        if (isLive) changeVolume(0.1f) else seekBy(10_000)
-                        true
+                } else {
+                    controlsVisible = true
+                    when (event.key) {
+                        Key.DirectionLeft -> {
+                            if (isLive) changeVolume(-0.1f) else seekBy(-10_000)
+                            true
+                        }
+                        Key.DirectionRight -> {
+                            // Canli TV'de sag ok kanal listesini acar.
+                            if (isLive && channels.size > 1) {
+                                openChannelPanel()
+                            } else if (isLive) {
+                                changeVolume(0.1f)
+                            } else {
+                                seekBy(10_000)
+                            }
+                            true
+                        }
+                        Key.DirectionUp -> {
+                            if (isLive) zap(1) else changeVolume(0.1f)
+                            true
+                        }
+                        Key.DirectionDown -> {
+                            if (isLive) zap(-1) else changeVolume(-0.1f)
+                            true
+                        }
+                        Key.DirectionCenter, Key.Enter, Key.Spacebar -> {
+                            togglePlay()
+                            true
+                        }
+                        else -> false
                     }
-                    Key.DirectionUp -> {
-                        if (isLive) zap(1) else changeVolume(0.1f)
-                        true
-                    }
-                    Key.DirectionDown -> {
-                        if (isLive) zap(-1) else changeVolume(-0.1f)
-                        true
-                    }
-                    Key.DirectionCenter, Key.Enter, Key.Spacebar -> {
-                        togglePlay()
-                        true
-                    }
-                    else -> false
                 }
             }
     ) {
@@ -848,15 +873,6 @@ fun PlayerScreen(
                             )
                         }
                         Spacer(modifier = Modifier.weight(1f))
-                        if (muted) {
-                            Icon(
-                                imageVector = Icons.Filled.VolumeOff,
-                                contentDescription = null,
-                                tint = NotflixColors.TextSecondary,
-                                modifier = Modifier.size(15.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                        }
                         if (!isLive) {
                             Text(
                                 text = qualityLabel(qualityHeight),
@@ -919,42 +935,30 @@ fun PlayerScreen(
             visible = isLive && channelNotice != null,
             enter = fadeIn(),
             exit = fadeOut(),
-            modifier = Modifier.align(Alignment.TopCenter)
+            modifier = Modifier.align(Alignment.Center)
         ) {
-            Row(
+            Column(
                 modifier = Modifier
-                    .padding(top = if (isTv) 86.dp else 62.dp)
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(Color.Black.copy(alpha = 0.82f))
-                    .border(1.dp, Color.White.copy(alpha = 0.16f), RoundedCornerShape(14.dp))
-                    .padding(horizontal = if (isTv) 24.dp else 18.dp, vertical = if (isTv) 14.dp else 10.dp),
-                verticalAlignment = Alignment.CenterVertically
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(Color.Black.copy(alpha = 0.72f))
+                    .border(1.dp, Color.White.copy(alpha = 0.14f), RoundedCornerShape(16.dp))
+                    .padding(horizontal = if (isTv) 34.dp else 24.dp, vertical = if (isTv) 18.dp else 12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                if (channelNoticeLogo.isNotBlank()) {
-                    AsyncImage(
-                        model = channelNoticeLogo,
-                        contentDescription = null,
-                        contentScale = ContentScale.Fit,
-                        modifier = Modifier
-                            .size(if (isTv) 58.dp else 44.dp, if (isTv) 38.dp else 30.dp)
-                    )
-                    Spacer(modifier = Modifier.width(if (isTv) 16.dp else 12.dp))
-                }
-                Column {
-                    Text(
-                        text = "CANLI",
-                        color = NotflixColors.Accent,
-                        fontSize = 9.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 2.sp
-                    )
-                    Text(
-                        text = channelNotice.orEmpty(),
-                        color = Color.White,
-                        fontSize = if (isTv) 26.sp else 21.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
+                Text(
+                    text = "CANLI",
+                    color = NotflixColors.Accent,
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 2.sp
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = channelNotice.orEmpty(),
+                    color = Color.White,
+                    fontSize = if (isTv) 30.sp else 22.sp,
+                    fontWeight = FontWeight.Bold
+                )
             }
         }
 
@@ -1040,8 +1044,16 @@ fun PlayerScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    NotflixWordmark(width = 118.dp, glow = true)
-                    Spacer(modifier = Modifier.height(20.dp))
+                    // Yükleme sırasında logo yerine kanal adı gösterilir.
+                    if (isLive && displayTitle.isNotBlank()) {
+                        Text(
+                            text = displayTitle,
+                            color = Color.White,
+                            fontSize = if (isTv) 30.sp else 22.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(18.dp))
+                    }
                     CircularProgressIndicator(
                         color = NotflixColors.Accent,
                         strokeWidth = 2.5.dp,
@@ -1293,6 +1305,8 @@ private fun ChannelPanel(
                                 RoundedCornerShape(8.dp)
                             )
                             .then(if (idx == focusIndex) Modifier.focusRequester(focusRequester) else Modifier)
+                            // Kumandayla (D-pad) secilebilmesi icin focus alabilir olmali.
+                            .focusable()
                             .onFocusChanged { focused = it.isFocused }
                             .clickable { onSelect(idx) }
                             .padding(horizontal = 10.dp, vertical = 8.dp),
@@ -1676,13 +1690,16 @@ private fun ControlCircle(
             .size(size)
             .clip(CircleShape)
             .background(
-                if (filled) Color.White else Color.Black.copy(alpha = 0.45f)
+                if (focused) Color.White.copy(alpha = 0.16f)
+                else if (filled) Color.White else Color.Black.copy(alpha = 0.45f)
             )
             .border(
                 if (focused) 2.dp else 1.dp,
                 if (focused) Color.White else Color.White.copy(alpha = 0.22f),
                 CircleShape
             )
+            // Kumandayla (D-pad) secilebilmesi icin focus alabilir olmali.
+            .focusable()
             .onFocusChanged { focused = it.isFocused }
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
@@ -1703,12 +1720,16 @@ private fun SeekCircle(label: String, size: Dp = 52.dp, onClick: () -> Unit) {
         modifier = Modifier
             .size(size)
             .clip(CircleShape)
-            .background(Color.Black.copy(alpha = 0.42f))
+            .background(
+                if (focused) Color.White.copy(alpha = 0.16f)
+                else Color.Black.copy(alpha = 0.42f)
+            )
             .border(
                 if (focused) 2.dp else 1.dp,
                 if (focused) Color.White else Color.White.copy(alpha = 0.2f),
                 CircleShape
             )
+            .focusable()
             .onFocusChanged { focused = it.isFocused }
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center

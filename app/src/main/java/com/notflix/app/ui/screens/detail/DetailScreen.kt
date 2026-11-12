@@ -24,6 +24,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -87,6 +88,7 @@ import com.notflix.app.ui.components.isTvLayout
 import com.notflix.app.ui.components.screenPadding
 import com.notflix.app.ui.theme.NotflixColors
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 private enum class DetailZone { Back, Play, Cast, Seasons, Episodes, Related }
 
@@ -163,7 +165,8 @@ fun DetailScreen(
                                     Key.DirectionDown -> {
                                         runCatching { playFocus.requestFocus() }.isSuccess
                                     }
-                                    Key.DirectionUp -> true
+                                    // Yukari tusu geri tusuna degil, sayfaya gitsin.
+                                    Key.DirectionUp -> false
                                     else -> false
                                 }
                             } else {
@@ -187,6 +190,7 @@ private fun DetailContent(
 ) {
     val context = LocalContext.current
     val app = context.applicationContext as NotflixApplication
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
 
     val seasons = remember(detail.url) {
         detail.seasonNumbers.ifEmpty {
@@ -246,7 +250,9 @@ private fun DetailContent(
         if (current < 0) return false
         val next = current + delta
         val target = when {
-            next < 0 -> DetailZone.Back
+            // Yukarida geri tusu yok: sayfa yukarida kalir, odur geri tusu
+            // ekranin ustunde her zaman gorunur.
+            next < 0 -> return false
             next >= zoneOrder.size -> return true
             else -> zoneOrder[next]
         }
@@ -286,16 +292,33 @@ private fun DetailContent(
         }
     }.orEmpty()
 
+    val detailScroll = rememberScrollState()
     Column(
         modifier = Modifier
             .fillMaxSize()
             .focusGroup()
-            .verticalScroll(rememberScrollState())
+            .verticalScroll(detailScroll)
             .onPreviewKeyEvent { event ->
                 if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                 when (event.key) {
-                    Key.DirectionDown -> moveZone(1)
-                    Key.DirectionUp -> moveZone(-1)
+                    Key.DirectionDown -> {
+                        // Once sayfada asagi kayacak alan varsa kaydir, yoksa bolume gec.
+                        if (detailScroll.value < detailScroll.maxValue - 8f) {
+                            scope.launch { detailScroll.animateScrollBy(420f) }
+                            true
+                        } else {
+                            moveZone(1)
+                        }
+                    }
+                    Key.DirectionUp -> {
+                        // Yukarida once sayfa kaydirilir; en ustteyken bolume gecilir.
+                        if (detailScroll.value > 8f) {
+                            scope.launch { detailScroll.animateScrollBy(-420f) }
+                            true
+                        } else {
+                            moveZone(-1)
+                        }
+                    }
                     else -> false
                 }
             }
@@ -462,7 +485,8 @@ private fun DetailHero(
     var trailerIndex by remember(detail.url) { mutableIntStateOf(0) }
     var trailerFailed by remember(detail.url) { mutableStateOf(false) }
     var trailerPlaying by remember(detail.url) { mutableStateOf(true) }
-    var trailerSoundOn by remember(detail.url) { mutableStateOf(false) }
+    // Ses varsayilan olarak acik kalir; yalnizca kullanici kapatir.
+    var trailerSoundOn by remember(detail.url) { mutableStateOf(true) }
 
     LaunchedEffect(detail.url) {
         trailerKeys = runCatching {
