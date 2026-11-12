@@ -12,6 +12,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -433,8 +434,11 @@ fun PlayerScreen(
         }
     }
 
-    LaunchedEffect(controlsVisible, isPlaying, dragging, qualityOpen, panelOpen) {
-        if (controlsVisible && isPlaying && !dragging && !qualityOpen && !panelOpen) {
+    // Kontroller bir süre kullanılmazsa gizlenir (tam ekran modu).
+    // Canlı yayında oynatma durumu beklenmez; kanal değişimi de tam ekranda
+    // çalışsın diye canlıda da otomatik gizlenir.
+    LaunchedEffect(controlsVisible, isPlaying, dragging, qualityOpen, panelOpen, isLive) {
+        if (controlsVisible && (isPlaying || isLive) && !dragging && !qualityOpen && !panelOpen) {
             delay(2_500)
             controlsVisible = false
             runCatching { focusRequester.requestFocus() }
@@ -540,12 +544,9 @@ fun PlayerScreen(
     fun zap(delta: Int) {
         if (!isLive || channels.size < 2) return
         index = (index + delta + channels.size) % channels.size
-        // Tam ekran modunda kanal degistirirken kontroller gizli kalsin.
-        if (controlsVisible) {
-            controlsVisible = true
-        } else {
-            runCatching { focusRequester.requestFocus() }
-        }
+        // Kanal değişiminde kontroller gizli kalsın; kanal adı üstte görünsün.
+        controlsVisible = false
+        runCatching { focusRequester.requestFocus() }
     }
 
     fun changeVolume(delta: Float) {
@@ -572,6 +573,79 @@ fun PlayerScreen(
     fun openChannelPanel() {
         controlsVisible = false
         panelOpen = true
+    }
+
+    // ---------------------------------------------------------------
+    // Kumanda / klavye tuşları (odaktan bağımsız)
+    // ---------------------------------------------------------------
+    // Activity seviyesinde yakalanır: odak kaybolsa, kontroller gizli
+    // olsa da ok tuşları, OK tuşu ve kanal tuşları her zaman çalışır.
+    DisposableEffect(isLive, channels.size, panelOpen, qualityOpen, controlsVisible) {
+        val handler: (Int) -> Boolean = { keyCode ->
+            when {
+                panelOpen || qualityOpen -> when (keyCode) {
+                    android.view.KeyEvent.KEYCODE_BACK,
+                    android.view.KeyEvent.KEYCODE_ESCAPE -> {
+                        panelOpen = false
+                        qualityOpen = false
+                        true
+                    }
+                    else -> false
+                }
+                else -> when (keyCode) {
+                    android.view.KeyEvent.KEYCODE_DPAD_UP,
+                    android.view.KeyEvent.KEYCODE_CHANNEL_UP,
+                    android.view.KeyEvent.KEYCODE_MEDIA_NEXT -> {
+                        if (isLive && channels.size > 1) {
+                            zap(1)
+                            true
+                        } else {
+                            false
+                        }
+                    }
+                    android.view.KeyEvent.KEYCODE_DPAD_DOWN,
+                    android.view.KeyEvent.KEYCODE_CHANNEL_DOWN,
+                    android.view.KeyEvent.KEYCODE_MEDIA_PREVIOUS -> {
+                        if (isLive && channels.size > 1) {
+                            zap(-1)
+                            true
+                        } else {
+                            false
+                        }
+                    }
+                    android.view.KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                        if (!controlsVisible && isLive && channels.size > 1) {
+                            openChannelPanel()
+                            true
+                        } else {
+                            false
+                        }
+                    }
+                    android.view.KeyEvent.KEYCODE_DPAD_CENTER,
+                    android.view.KeyEvent.KEYCODE_ENTER,
+                    android.view.KeyEvent.KEYCODE_NUMPAD_ENTER,
+                    android.view.KeyEvent.KEYCODE_SPACE -> {
+                        if (!controlsVisible) {
+                            controlsVisible = true
+                            true
+                        } else {
+                            false
+                        }
+                    }
+                    android.view.KeyEvent.KEYCODE_DPAD_LEFT -> {
+                        if (!controlsVisible) {
+                            controlsVisible = true
+                            true
+                        } else {
+                            false
+                        }
+                    }
+                    else -> false
+                }
+            }
+        }
+        PlayerKeyBus.register(handler)
+        onDispose { PlayerKeyBus.unregister(handler) }
     }
 
     fun applyQuality(height: Int?) {
@@ -638,6 +712,9 @@ fun PlayerScreen(
             .fillMaxSize()
             .background(Color.Black)
             .focusRequester(focusRequester)
+            // Kutu kendisi focusable olmalı; aksi halde kontroller gizlenince
+            // odak tamamen kayboluyor ve kumanda tuşları çalışmıyordu.
+            .focusable()
             .onPreviewKeyEvent { event ->
                 if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                 if (errorText != null) return@onPreviewKeyEvent false

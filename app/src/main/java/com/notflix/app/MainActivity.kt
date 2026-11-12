@@ -23,6 +23,7 @@ import androidx.core.view.WindowInsetsControllerCompat
 import com.notflix.app.ui.AppRoot
 import com.notflix.app.ui.components.VolumeHud
 import com.notflix.app.ui.components.VolumeOverlay
+import com.notflix.app.ui.screens.player.PlayerKeyBus
 import com.notflix.app.ui.theme.NotflixTheme
 
 class MainActivity : ComponentActivity() {
@@ -63,6 +64,11 @@ class MainActivity : ComponentActivity() {
     // the app draws its own centered indicator instead.
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         val keyCode = event.keyCode
+        // Oynatıcı ekranı varsa kumanda/klavye tuşları odaktan bağımsız
+        // burada yakalanır; kontroller gizli olsa bile tuşlar çalışır.
+        if (event.action == KeyEvent.ACTION_DOWN && PlayerKeyBus.dispatch(keyCode)) {
+            return true
+        }
         // Emulator/PC keyboards: ESC acts as Back. If the on-screen keyboard is
         // open, the first press only dismisses it (TV remotes behave the same way).
         if (keyCode == KeyEvent.KEYCODE_ESCAPE) {
