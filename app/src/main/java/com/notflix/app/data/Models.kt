@@ -93,7 +93,9 @@ data class LiveChannel(
     val stream: String = "",
     val tvg: String = "",
     val programs: List<TvProgram> = emptyList(),
-    val alternates: List<String> = emptyList()
+    val alternates: List<String> = emptyList(),
+    /** true ise kanal cekmiyordu; yerine calisan (SD/720p) kaynak konuldu. */
+    val fallback: Boolean = false
 )
 
 data class TvProgram(

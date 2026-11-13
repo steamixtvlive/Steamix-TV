@@ -33,12 +33,14 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.relocation.BringIntoViewRequester
@@ -259,21 +261,21 @@ private fun TopTab(label: String, selected: Boolean, onClick: () -> Unit) {
             .clip(shape)
             .background(
                 when {
-                    // Secili sekme net gorunsun: beyaz zemin + belirgin cerceve.
-                    selected -> Color.White.copy(alpha = 0.16f)
-                    focused -> Color.White.copy(alpha = 0.10f)
+                    // Secili sekme koyu kirmizi zeminle net gorunsun.
+                    selected -> NotflixColors.Accent.copy(alpha = 0.26f)
+                    focused -> NotflixColors.Accent.copy(alpha = 0.18f)
                     else -> Color.Transparent
                 }
             )
             .border(
                 width = when {
-                    focused -> 2.dp
-                    selected -> 1.5.dp
+                    focused -> 1.5.dp
+                    selected -> 1.dp
                     else -> 0.dp
                 },
                 color = when {
-                    focused -> Color.White
-                    selected -> Color.White.copy(alpha = 0.72f)
+                    focused -> NotflixColors.AccentSoft
+                    selected -> NotflixColors.Accent.copy(alpha = 0.75f)
                     else -> Color.Transparent
                 },
                 shape = shape
@@ -588,7 +590,8 @@ fun MediaRow(
     onSeeAll: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
     firstFocus: FocusRequester? = null,
-    firstFocusChanged: ((Boolean) -> Unit)? = null
+    firstFocusChanged: ((Boolean) -> Unit)? = null,
+    listState: LazyListState = rememberLazyListState()
 ) {
     if (items.isEmpty()) return
     Column(modifier = modifier.fillMaxWidth()) {

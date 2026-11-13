@@ -1,0 +1,308 @@
+{
+ "generatedAt": "2026-11-13T06:56:05.929Z",
+ "deadChannels": [
+  "TRT Türk",
+  "TRT World",
+  "Adıyaman Mercan TV",
+  "Can TV",
+  "Ekin Türk",
+  "Kent Türk",
+  "KRT",
+  "NTV",
+  "Olay Türk",
+  "TBMM TV",
+  "Tele 1",
+  "TGRT EU",
+  "Ulusal Kanal",
+  "beIN Box Office 2",
+  "beIN Sports Haber",
+  "beIN Sports Max 2",
+  "Exxen Spor 5",
+  "Exxen Spor 8",
+  "Exxen TV Spor 1",
+  "Exxen TV Spor 8",
+  "GS TV",
+  "Sports TV",
+  "Tivibu Spor 5",
+  "Dizi Smart Premium",
+  "Filmbox",
+  "FX",
+  "Movie Smart Classic",
+  "Movie Smart Premium",
+  "Movie Smart Premium 2",
+  "Sinema 1001",
+  "Sinema 1002",
+  "Sinema TV",
+  "Agro TV",
+  "Automoto (fr)",
+  "Discovery IDX",
+  "Discovery Science",
+  "Discovery World",
+  "DMAX",
+  "History",
+  "Tarih TV",
+  "M Türk TV",
+  "Milyon TV",
+  "Number 1 Aşk",
+  "Number 1 Dance",
+  "Number 1 Türk",
+  "Power Dance",
+  "Power Love",
+  "Tatlıses TV",
+  "Tempo TV",
+  "CBeebies",
+  "Çocuk Smart",
+  "Da Vinci",
+  "Da Vinci Kids",
+  "Da Vinci Learning",
+  "Disney Channel",
+  "EBA TV İlkokul",
+  "EBA TV Lise",
+  "TRT Çocuk",
+  "TRT EBA İlkokul",
+  "Diyanet TV",
+  "Afrotürk TV",
+  "Arkadag TV",
+  "BR TV",
+  "BRT 1",
+  "Euro D",
+  "Gurbet 24 TV",
+  "Kanal 7 Avrupa",
+  "Kıbrıs Kanal T",
+  "Kıbrıs TV",
+  "Kıbrıs Genç TV",
+  "Luys TV",
+  "Show Türk",
+  "Viyana TV"
+ ],
+ "fallbacks": {
+  "TRT Türk": {
+   "tvg": "trtturk.tr",
+   "url": "http://193.47.62.157:8008/sunshine/4pzWLbAKFR6j2n6T6Q08VT-DOcehNnX3ll5dHEVcWpV408XcGQLK66ffEL9BRq2_F17_W2etVSBbBLSNVauV76lPIgtmJj-65GtJmjdHT65CONpcvsCyPqzNAO3X-BD73VImFk8skm4a6Pln54mtRg4-ac_RNyXRQafMfmumiVyHVEtarerRYO_glcsZz_NKp_VY23GbVtA6PhAow6mmfZMlFBFGX5evV85-VQ5GkOUP2YQoe-0RKtCcmxAKR0br/hls/index.m3u8",
+   "source": "TRT TURK (7)",
+   "height": 0
+  },
+  "TRT World": {
+   "tvg": "trtworld.tr",
+   "url": "http://138.226.249.38:8008/sunshine/AmLZYHqxl6CWuYa8u1wPZVBysx93eGW7Ai1JRmACkdTXxwZR5uuqJaxAyrXuW-CqPgwjjK-m-TKsEsB0w6zO2l0Ar6xewoXwMBk-cpJSXOI2TbyeL06nYMFwq3p0l2E5SugfG2PjkVlZITVqdX9oAT1U7NKx6qx2WSkkKR62sgMAuD1_c_AY0aWdF-VkYUQjxgmNzfVNipH4okV5Lf5Gn-SzBFkVLnnXSnZnUAqAYw9Bqnq7NnGDzUl1Vxiwa7EM/hls/index.m3u8",
+   "source": "TRT WORLD (7)",
+   "height": 0
+  },
+  "Adıyaman Mercan TV": {
+   "tvg": "adiyamanmercantv.tr",
+   "url": "http://109.205.187.150:8008/sunshine/5NqnGvN08REHrLojyqBd53eZWm1u04kMySQkoV4yeJsT4-CRuMG6qttkDR2HmbiTXALQT__rz0WdLbx4MvWzVCw3xAw2QYSVd9XXTejiZKI4xJ0a_4Bl3sDOvyNs3i4WCE_YsI8queio9zMlpgX8AcI-RjOFJYEOT6eUMhUug5xX43wgBtnS5bX1C2_yUpQtlQHa7jgmtWm76jPXzpK6pArjHj-sxwyy96wIJf6rDs-XWu-NZhiw-c3uxUGSdye2/hls/index.m3u8",
+   "source": "ADIYAMAN MERCAN TV (1)",
+   "height": 0
+  },
+  "KRT": {
+   "tvg": "krttv.tr",
+   "url": "http://138.226.249.38:8008/sunshine/lnPb5Hq84lpdpplhmIE6mH1Z8bxDTXnj9EXt5b0bp4FAXtz271D3dTGYpX8VvnCWwZBnzvy8oPyaUdNlzRAGtu7j_RKtvoNJoHQeHEZGejcwLn778_UqKDi0v7TyQ4uHLc7GNWGlssfJ1TD38jhQruJ785uNk_wPgTelSDAAVwCBR3EkLyqNl0NH-2lmeQtk3G_yxFCFLZiqc1QHNYluMPSoHubMNeX16m2xGlqUlfRBME6G9FDxsNsxyyZOjkgF/hls/index.m3u8",
+   "source": "KRT TV (7)",
+   "height": 0
+  },
+  "NTV": {
+   "tvg": "ntv.tr",
+   "url": "http://193.47.62.157:8008/sunshine/ERhe0kFWu8US_iKRxGGLdN8SDiDBdwH_Moj0AZ9d91VxfW50nKqT4kVzBdEtWW31-TJleNcBRR5Vycmxlu0qQ-JzfOMFo6A-uYV0uit0f7vLKPeaE7V1AAKrrAYKd21QKlnbg5CxMGwxzQKITagUcO-fpmehtRe4CenLGx4YFZDk1CenYE82cZFysRaICp6YjIwfT_Dm6hbZwT96qbe4UowqZjL2n5M0_mLMq268uwq6NCV-xlpnMWWFT7GjFnwk/hls/index.m3u8",
+   "source": "NTV RAW (1)",
+   "height": 0
+  },
+  "Olay Türk": {
+   "tvg": "olayturk.tr",
+   "url": "http://109.205.187.150:8008/sunshine/XAAKbEMDCtnHQqwjG0V3UYyrgH2myA1g5KvFKLpSk89Id_6TYIXedECHRM9vB6afJtooIowbaRDFvYT7HEOGtNQguP56s_q_CNkbb-HGE4WhyK-FxFNBRtZDnYoFlR5OGFBVPRZ01DomVNWK9Rx2JL1f8cUU0M1qWWx4fbFZcITR81hGMXw5FcozoMIV0g5s-P51sbJ3mTxW0zHsK-Kt5d75xf-kxdD8egmfNtkeecxgSmvgTt63wDqG-P92_1Y4/hls/index.m3u8",
+   "source": "OLAY TURK (6)",
+   "height": 0
+  },
+  "Tele 1": {
+   "tvg": "tele1.tr",
+   "url": "http://109.205.187.150:8008/sunshine/2o6pyKZPWnHvjJF9UclzGISI_FU6k_Mc3dLl5SkqufUJCagdpZrJ3-FQUeXNcT02Je7IHAjns2jnjeJaw924WGvbenTwCR7Le1SMkHEXCa0RFI9Uu2DKlBassnX6sazCdWJKYQlRsIx1o_u78NEaLhuKLEjlw191cHAsL4eIrwzKzFl-CslVEThnFZhTsU8lX-lfMKdwVE8S_4NW7BXmRT7YSv_l7Ot3aN0K2TctoaW_VBqifD-OLYKFLChveAIn/hls/index.m3u8",
+   "source": "TELE 1 (7)",
+   "height": 0
+  },
+  "TGRT EU": {
+   "tvg": "tgrteu.tr",
+   "url": "http://109.205.187.150:8008/sunshine/LYhUqJvpCwpo4IRK3ckSsDszfIhGEVYHpM1ab3l-RSCu5nWSrwosQveejY8ChCukc4XwY-CPxjZ2A1rHm2LOPNy4k5_WNTI5IDm4lP3syz0OFNqvVtW3XObXq4VsIWFuoCVbDvZ-OzaG_EPCqSjmUXMEYvh5ZtxOOEpjEgbJE64BEtt5otgwdewwYZHNIifeDUqc_D_hW3gOkYi5p5LMkeAtTT3W7EE0hXIHsf34-Jspg_YTwF-KSELDyc2KGJKd/hls/index.m3u8",
+   "source": "TGRT EU (7)",
+   "height": 0
+  },
+  "Ulusal Kanal": {
+   "tvg": "ulusalkanal.tr",
+   "url": "http://138.226.249.38:8008/sunshine/IBl-dv5P-zxKqCq7OIbIVPUJRrJtfHnOkXOr3x3XBJ9NYnA9MX1rrqkAJ1uU6qhija9ImxZv8YJ2GFBYrN1ZfMuAljm8vTUcW2GEVrPNzgxCbhEY0nJX7C2LK98oQLUNKu9FjXuuW4i_1KiB4tXvgADuXpYBQBa-dS7adD33QRh8t8-bxpzBIUsVzsXFAmWLl5kjpHJVv5kk4xLIUx-cOpmObIpf50gUWIiB7l7yZOoEDBTFf8ve4ddJiCZPcI8U/hls/index.m3u8",
+   "source": "ULUSAL KANAL (6)",
+   "height": 0
+  },
+  "beIN Box Office 2": {
+   "tvg": "beinboxoffice2.tr",
+   "url": "http://109.205.187.150:8008/sunshine/kWIXtAGQnG4i3TkZ5snmTLL8AYPLV1GiJSPpf8Lq4CfBD1eZOapmuTOh9-NH_7XBIimBLXIuGP6SHcJkthRbpYkL_SSDaZtgqY7D7syi2UmZSjnGv9tgJNHx0ehnm7AZCmYyAe7IxSxTVgAzn0Q4w4g-jX8-bx6ZnuD4Rx3P0doCrlQlThPsnIUErKo4PurO-cHAYHs9JuwSNQrXig-DYby5axOWcXNueDZFSd-ZTKfNJU4JsqMhZnjWJ7sF0FML/hls/index.m3u8",
+   "source": "BEIN BOX OFFICE 2 (6)",
+   "height": 0
+  },
+  "beIN Sports Haber": {
+   "tvg": "beinsportshaber.tr",
+   "url": "http://138.226.249.38:8008/sunshine/GLC4FDXAjgyh5bVJ9laFd7WyJZv71FpQHLpKoAMcYw0wuDv9-qm3d_Ib06Eft9nYmCaCar0YxPCEuwV0ynM_zSyRemAT7OdjBqyy6HkPn8U4sC6kg0SOUweOd3MWrMfelF0L77HnHMIsL1yyqWvRvnqRDqUcBcjQoGzivtXrBcXMLPPcFoEK6fn2PLXl5l1CKUzjY8XeTaqu6wQOaUixt1SayHk_pl9MwhOwClxde4Z_Hm1GQbuHcGjgrs1FOwIA/hls/index.m3u8",
+   "source": "BEIN SPORTS HABER (6)",
+   "height": 0
+  },
+  "beIN Sports Max 2": {
+   "tvg": "beinsportsmax2.tr",
+   "url": "http://109.205.187.150:8008/sunshine/LTfe8L-ItK_A3RADrzhRGPF6tKGqnz3mvzPQ6p2itZjwEMQm3VEUKyuDW_jvP1Jf9ea_pOdXzVIsADgckHEasosgld3jkr5wos59rQ_cIx-sn3H9GMgPFHftv-d5c8oiwcgwcqTBrIHtaYKGb3SY5LgZxCqL_uGB3HszlVx7OERfzycNyH282qXrAa9EijQPAh4x6LJYBDc72rwRRimX8UW4bb-ESDHc5MZNWdI4btPCntdh1_SMYAzo9NPlLILw/hls/index.m3u8",
+   "source": "BEIN SPORTS MAX 2 HD (1)",
+   "height": 0
+  },
+  "Exxen Spor 8": {
+   "tvg": "exxensports8.tr",
+   "url": "http://138.226.249.38:8008/sunshine/i8FxdDYajiTXB846dKRR1f408CBTwKswrfrHmjBiqEu84uTzXDuq7QdvKl_doowTeG-3ATeGyY-6tcGfokORKpsRVaey4We_0yBEzgT0r8XFJmJypPB6BSWSx--eSgT2uuLDbt2EfZTTOp_CMqNlCTSZDt2WQsA4CgOssns6vKCsPNAvxFTDmtmGvX5iwQ1pIEPQoUq6M2LnnbEvatl-K1w_o4CWVs8bdHKBj98GeoSEuy69vNQlWZz-iSxwu6SW/hls/index.m3u8",
+   "source": "EXXEN SPORTS 8 (7)",
+   "height": 0
+  },
+  "Exxen TV Spor 1": {
+   "tvg": "exxentvspor1.tr",
+   "url": "http://138.226.249.38:8008/sunshine/18UD39XFt6Yc6lFgoDSwD5mVtK2p6W1dTQfnMwjLloDa8KrAA_sM8RNomVkClFc7N1u7rQlwJUPr1LDoGFKqhDilWpr3jNoQYqVYvy-onvsPR0nomdDlZWQDdTgAoPr_Kma9KGTm-8ZKEOTqs-cJUyT5Dcv30UytRZpQafjdVEoFWPKuOpNPY-NnMJg-8V7WpGtCcW7k46HpLUB2RMpRM42vZ0RaVI6bJ3Hzg5zupXUogsO1EmgcoHSYVoomyk7t/hls/index.m3u8",
+   "source": "EXXEN TV SPOR 1 (1)",
+   "height": 0
+  },
+  "Sports TV": {
+   "tvg": "sportstv.tr",
+   "url": "http://193.47.62.157:8008/sunshine/Cn6kceNeqU--_GgGlRUjDYcbGNN7sP_bRa0xqrlMTfsvErkoATRsYT6SJFohVWwxwGzEgKW8ZlWWhrSE-VUTHxG8JoSBIfT0QnMi1WeD9-Z0g65cQavH5lxCHEU0oYVAgDO0CiccngcoXpmiElluW-02hSYNKa79zDbgaIKiXHNJN92q7NBCUoZUpexNx17GEdVj6z050yg9y3ZCvZt29Q-mIOHd7wuOE2CRvB3thtKRERFHbvoeXIZOOrwjIrZC/hls/index.m3u8",
+   "source": "SIFIR TV HD (1)",
+   "height": 0
+  },
+  "FX": {
+   "tvg": "trfx.tr",
+   "url": "http://138.226.249.38:8008/sunshine/oig0irYgjXRmorNYaoVNBMXjkYEblVs7rD4_kjKObYGpwx4ZLP_riiJ6MiXbx-IvFTKTFThor2oav4zSSh78m-T0c3CTSO-cGJGmb8LmMWRbqTA80XQ25xo_Ze26wnnM6ju_7Btf3VYqAaQr_xov2ogyLyD8YAEw6wBPyJn09Ju6JvYKOjaJr4PpwqPHxpFESrnV6I5-dPuvRzylDBW1RJCwsdtmLGZ0n1llL9ovGUcbfKHB8rIH7Qg0rGTEZuXG/hls/index.m3u8",
+   "source": "4K TR: FX HD (1)",
+   "height": 0
+  },
+  "Movie Smart Classic": {
+   "tvg": "moviesmartclassic.tr",
+   "url": "http://109.205.187.150:8008/sunshine/7Vpat-QynUtOAFO6iJ1bD5sz2va1eVOcHMg3joy7i9KbUyjYiVgfgsBUYliRa1XGezZwnXLgXVlTpL7MM7zfc2dFKHwrHGuUgZZ6Q2Xi14G9fjYQWMVaIomTu8Rk4YtScBcFQC6NDOubrlfQvikSussN0DTODHFxYWAEIWwqOw4X977RxIU50SesmLeFHrVk9riuKUA9Sv0mc9mLk0rSxhM0fknCyfxrIYsrWEXTB-ezVDP29fDYUVW8Ei6zqlIJ/hls/index.m3u8",
+   "source": "MOVIE SMART CLASSIC (7)",
+   "height": 0
+  },
+  "Movie Smart Premium": {
+   "tvg": "moviesmartpremium.tr",
+   "url": "http://109.205.187.150:8008/sunshine/2e8gqFV9wDR-z4B0KNamaVpLIf2X1XwMECexjSMJ0-T0M4o05fWYelJQ-ng8S9kCz2i5dF3WtCST1pLZpx2CJOo2xaa75jpwzL5t-AzIOakEmLSpuwn7A_1gb1VFlTdAOoTQifjc4qQWunk-QeY6rFnmcxm4KEO-vc2ynyIV4oqHzyUrrChvFbXjAWfKASmwU83e0E-3TCogzrmE7lIz3nKJgCFNDCTfj5QjlIB5pOxIHL8-lygey6_vpFferRGZ/hls/index.m3u8",
+   "source": "MOVIE SMART PREMIUM (7)",
+   "height": 0
+  },
+  "Sinema 1001": {
+   "tvg": "sinema1001.tr",
+   "url": "http://109.205.187.150:8008/sunshine/9zhbzZUOgK_viBqlaLb59_ZVwoyAiBFan0jXkMc9zYm4XcagYgBtg2EDVI3ow1jre5ZPCsSHqRHVIj-SHFly3WWhkiUVQ3YTEmQ98wnuDoRhjvasRdwRW_hOAp4Kxmb-G7w4Fgh0tmcU-KL_ASaoLJZkax-y-UvriGnq8nQse_U1rwX20OuWHRYjuKqDtv6ZG2H8RRXVfYeeBpnXGJFMV_I2qm3MG4pwHKuNfibozYajU0Pn4cSLzKn7pvUwFbRH/hls/index.m3u8",
+   "source": "SINEMA 1001 (7)",
+   "height": 0
+  },
+  "Sinema 1002": {
+   "tvg": "trsnema1002.tr",
+   "url": "http://138.226.249.38:8008/sunshine/wWJEoHnedur5q3_Cp3NsUkMe1vZLHEUcuFoJ2CE2jbyOcj-7oImImCd5WCfINgGAjvXBnyeDqp3iDNR9xxiYwPreV5NQJw4DwbElxtjZ0u5y8e4hAhVGaT9wtg0ILb9EsQVyI70Hebg9gjbKnF6ENMSQ1yWJoUIblNMMu7isqjokqFScpnFx6vWzIrrKXXoHMldYY3gg0BxVBAuSmQmW-SND_iOPmlmuYk-UKRFvWhV0kJpf6h1TrNt_dsr5gnIL/hls/index.m3u8",
+   "source": "4K TR: S NEMA 1002 HD (1)",
+   "height": 0
+  },
+  "Sinema TV": {
+   "tvg": "trsnematv.tr",
+   "url": "http://193.47.62.157:8008/sunshine/ahz6JXEpHVZA73lLgR2WM9_RLBpdQE3qeob7CQT2dFbVHL03OTA7BXdyb2K3Bv_1-qqHMah2bir8MzqDzDzzdEYgfswlmSaCodm9Od1QS5w3l3L5h4gGbVf6OtWNdyYiFk4of8MiTXCRh95GPtFhfn3iok4L52NNQGPvbhTgklqAPLU_sxUs6uNbCdcLzW9peavMXWBtW4Syl1Hzkq56Y15xXa17qFLrFdIiYmgEpJFookb1GDGw5u0dykc1QneO/hls/index.m3u8",
+   "source": "4K TR: S NEMA TV HD (1)",
+   "height": 0
+  },
+  "Automoto (fr)": {
+   "tvg": "automoto.tr",
+   "url": "http://193.47.62.157:8008/sunshine/QgrV2njUWiSgrmARAzRwmaMOAiP1Stsm0hHedKu8a846Okk9VZZ2Es24Uwj0-7Fkpf0DCn9te6dyhzXJO1kwlOArvVEpMaud8wm2Jx5zzbxCpYBN0P2FPM17D4pCEDRH_O1h4nCtuxmDEFgsaZX0eUY58ifwaIGVFdoWTiFkEyWcgZOypuXl3FAsB59tajSX00Hm_E__X9SQ_bPAJKw0WZQVezaPHhK7uwitmrL4SQn0J5Jgkjp4cmCAr7b60G0B/hls/index.m3u8",
+   "source": "AUTOMOTO (FR) (7)",
+   "height": 0
+  },
+  "Discovery IDX": {
+   "tvg": "discoveryidx.tr",
+   "url": "http://193.47.62.157:8008/sunshine/jlI8XkPnsBHTRftFFILMWFkwEJz6W2zYjd4hwv069lgbfwXrXzHXLBv-Rku4Ccq8S3Elu4NAof68hYHwS4aV6q1ndsj0ENSAi3ChENgMTVumde6DM7ixmgIoKXBpK-oI-p5i0sp-DW5Np-M7oW-lRRalamAvxpsWVHOIHNmZDAGtprcg4wIkkdpLAp7qX13OStPTig9_tKFWKw0itqWGV40b-hpQ3V2P5G-Cw7YARqkSiu4xOqgnhnCEAwzAkFCv/hls/index.m3u8",
+   "source": "DISCOVERY IDX HD (1)",
+   "height": 0
+  },
+  "Discovery Science": {
+   "tvg": "discoveryscience.tr",
+   "url": "http://138.226.249.38:8008/sunshine/Iz_-ASJUl7Px3MfcarpHVhCoWlSbOMm7cgsAY4QA2rG1RiNN0eCXRqMQBUh8PTDj7z4xMKg7ftbDb_GyJFa6nJ7hbbCNiiABBBxEtuxQEuzo9eUDNHEO6FEn3IPDyLRj1kVutWlOJ68l7sUgkcdBlqA4LruiuQiTTjQ_UMaTORYjCgd9pHRs3ex538_ox73s67b8Bhpmg4v-R3QUfITPSNL3_1IBTvJ8p26ZqJNXPeVpbaWVEKagP1A6LEwoQq6h/hls/index.m3u8",
+   "source": "DISCOVERY SCIENCE (7)",
+   "height": 0
+  },
+  "DMAX": {
+   "tvg": "trdmax.tr",
+   "url": "http://109.205.187.150:8008/sunshine/c1SkLl9A-ztgrmvp6W2Unp1un8axan5Thz0GIWq8w0z4OnPfK92A1DNUzzYwI1HgLSdTvYyzoDc_dj2qeA4TAAahyEXjXMirhVGu08lM95QXRb59NHPx_6vrw4pz_gxqeSMY3qg9jz5Fz1vs2twUQ3hwksbOd3p4zqhVP-HQ5r2br8zWpCJ97q0YCP1ddfR2hlnj_0YHl9U4UuiaTdbxAKYHy5E6DQdSD0ha5tUqwcyC9_IIumaaQVetrgTEYnhL/hls/index.m3u8",
+   "source": "4K TR: DMAX HD (1)",
+   "height": 0
+  },
+  "History": {
+   "tvg": "history.tr",
+   "url": "http://193.47.62.157:8008/sunshine/iBS7KoQWdhKi1nDI1vBYnnYmrlO7verOJnAzmnOhRe1rIgN7w8zMldsAf0O2ot636VQ11U5f7TnooQKSD1fAlqPCfmXsX7A70kZfc2xKn0hNHyTjLuMiV9tEXDYIHh47-QPMKpezTp9HvJSH9ki_rEjrQKU3SlE-JnVu0VC3q0Sk7SIJrzzNsinqsMraIxaEbSFVnGlL4f2ZYS9jV7WmKjF63UI9JvKKSAcn0MqBdQkQJ-Uhe4Ah1cy9dd7EVZA3/hls/index.m3u8",
+   "source": "HISTORY HD (1)",
+   "height": 0
+  },
+  "Number 1 Dance": {
+   "tvg": "number1dance.tr",
+   "url": "http://138.226.249.38:8008/sunshine/_HYIMVD5V9vg681FiGSaxiqcnC3HfORpIBKZG3wf8Ajl6YSdYXPMEnFsgSRqIUWW9QeE69l5eQ-PjGWgT6ZhV-a-8HlTIKz96RMdztN9TuvRznp97mktEJdfoNX024XfhoyiC62JtgzKcU4cCDgPSb89DUVi7ZeTTHzfiuDQRzho2KV0PB4O8VjfmK4vxjd-cg9Omf_S8bm7hWoZIcLRF_sTevIoKUMX-9Zf3x1BRqccfkHQKB9amLN6MLSUDDKy/hls/index.m3u8",
+   "source": "NUMBER 1 DANCE (6)",
+   "height": 0
+  },
+  "Number 1 Türk": {
+   "tvg": "trnumber1turk.tr",
+   "url": "http://193.47.62.157:8008/sunshine/DtI64tAXc4G_A8Z8Uy3BBBKqeUbGJ0uPIj-1dUlSR9xQp7ubN4r198nuPn7vW6YKXd3hgObSl9aVRTdCW6AlrM2XMXlY1nx0yU1HQ3-F38DS9EuxWw7rD3GgcZnoqRJ1RsBTlOZeFCM9htsmxTeBApXsJCVLO7W2-AKAFfSTDF1cUEg3RUEJyxMgvg_o1MCtcWkHkjmlBG-xAbSeJ03EPK1y9RVdUCcsgFOp0OTdFym7N186z-kmX9B_mkF_T7lS/hls/index.m3u8",
+   "source": "4K TR: NUMBER1 TURK HD (1)",
+   "height": 0
+  },
+  "Tempo TV": {
+   "tvg": "tempotv.tr",
+   "url": "http://138.226.249.38:8008/sunshine/Q9nihHKAJd1_ZPXsLdscEwYF49Fiwl1adc9ZkNjCkkpCwA0BEC98YHwekpWidR517CexauxdsH7UB_oKPLSMdRpud1ZXBQGVUuy9lOzV__59InudljwrxCzOuMqY1LrwERhdgtt2r3pDNRegtvMMC-xtjII9V68AZSibNVp8vEDb7Zx82WlUoFdfWqzYPnCrQ7Ae0gtQmzIZLgDcNeN6VZSpOKOO1QsoLGElKaOTBzGw64hT6suYfCOlH2pBETkj/hls/index.m3u8",
+   "source": "TEMPO TV (6)",
+   "height": 0
+  },
+  "CBeebies": {
+   "tvg": "cbeebies.tr",
+   "url": "http://138.226.249.38:8008/sunshine/RH90wUY35JpFk5xADF2S-_Z2GPX633HatQbAuxszdiXX5d_NIlsDNDMXZEZ7poUjnkh-0vx6Y1Sb2GvA3nubJPLtaEgbq7y5APq-Qw-9Qqr-_V8sQlbMCjz6_v6ySysni5U4bMEQpgFCktzc7MYVdu_573IIsNtbJ7HOSVr0ctmmRf_37x8Uq8CyuSd2HG8ZoAgT2tLRGgF0J09CUuB9J3EvR7te8b4BZhlHAYe00lxiocoz3Y_tM7e5nWxLDEm9/hls/index.m3u8",
+   "source": "CBEEBIES HD (1)",
+   "height": 0
+  },
+  "Da Vinci": {
+   "tvg": "trdavinci.tr",
+   "url": "http://109.205.187.150:8008/sunshine/LF3eoe1zxgLzOPejEGrE-Fhg-NFItuZLkuyyCFeOUYRJFmBb1eIdiTUKnExH7XyPcVpBFhHOv1ol91ED_6-4P9Xe9bqCGMcyaXwjFSq3MQgSDSIDdL3OwE3GW-8eKW1mZWX6POTWkwJeDD5QTp-Ab-Gzg6LrAYuQNaxUwrV_R4uHNA2FqPVWvXp3mSQJbAReRPpZOf7RN39IaPjNUvaUk9ahUzzdvrT78j4KX0xAJ8MJryxi5T8fWI9CRLovgPmf/hls/index.m3u8",
+   "source": "4K TR: DA VINCI (1)",
+   "height": 0
+  },
+  "TRT Çocuk": {
+   "tvg": "trtrtocuk.tr",
+   "url": "http://138.226.249.38:8008/sunshine/zybGIVZxBnLMZ0S9-WeLZjT37u8ZpRyrKb8P_y70_qd76HLiaJzZPTBC5e2YAG1EJyZ-pLapy00SMnQk6m-i6YK7shK3jrOg6jeOyHVTnQUkADs27TzeJf1CYZ4nlHNMo0s72ArBgQJwh4U9F2queBpwXAIJ6T5UgCwSi89VA2PzlYm55F1mGLAdbsXi0YVT9SvKUsiN6poQ-ctIbS2fJRSBoQFrvbqY30lfVPH2G0laEPlArbSTLEdbOIAEWoJk/hls/index.m3u8",
+   "source": "4K TR: TRT OCUK HD (1)",
+   "height": 0
+  },
+  "Afrotürk TV": {
+   "tvg": "afroturktv.tr",
+   "url": "http://193.47.62.157:8008/sunshine/PHKr9SIDbb5pP1OKCVE-tm7rVS2fkU_clVjTOOP9o82SNsN2IhYAlvA5IRtibW0X-FZXXYJ6Kyo47sw6qE_j2OHxl4HBANhZYXrgXTMSJv6Zq--I0TLXBX6uzz4yC81b-aS9HafeI1NKnn4jn34ODfDma-IlrNdQXtEWUp9TsNXDEmPYhYoumSN-PoS-5qzY38wFUw5W-7vrPk5Y5IbZzmo3qlcNHEFhtSW2pm9afzPQQiaPrK51xrptmpUF6587/hls/index.m3u8",
+   "source": "AFROTURK TV (6)",
+   "height": 0
+  },
+  "Euro D": {
+   "tvg": "eurod.tr",
+   "url": "http://193.47.62.157:8008/sunshine/3mGs0JzfHfR5-obBc2DjDzecQHm_u_QK7RtCm7IAaM6lIIERDPxIZSCXU401KuTF8pvHx-o2YxEY28B-OssYxikZntovqhebk6TovPCw4aeOtQqi-v0UCGgupv_jAfysiGrm10XGkRWnSh3Jbm8v01Q_O9BCUe4wkg3e-ELYApA-hnYaosXWEJGdSprkxoTgeaUCO3XhKKLZUvqgSy8QX24J2NU0y_3z1HxDUfRsr1Z6bnKMZ_gOlSf98y68nZbR/hls/index.m3u8",
+   "source": "EURO D (7)",
+   "height": 0
+  },
+  "Kanal 7 Avrupa": {
+   "tvg": "kanal7avrupa.tr",
+   "url": "http://109.205.187.150:8008/sunshine/LJuvXdCwzo2mMOcUQQlS-YeIL0gOOdO9d-wGuycKwlR9WYsl5G8_KQEl2MVzTumEgsut1jFPUb6ZpUnPus1wR26Gb5rYnHKRdS4XnZIXdMqCfDFBIWpHU7VwxauhhLhbzWRDd1UQwLR2mcHrCohnWicdHHMAFs96ES_ZkcFB4tsh4koRU-32tdTUrl9HKOCDXHxaoXQZTdCG6uA4uGClcX5fi6wE91G9U4-bPg03ba1fLIX_s6wZk2rl3Hu7YSbS/hls/index.m3u8",
+   "source": "KANAL 7 AVRUPA (7)",
+   "height": 0
+  },
+  "Kıbrıs Kanal T": {
+   "tvg": "kibriskanalt.tr",
+   "url": "http://138.226.249.38:8008/sunshine/VFci3PyvvYnMUlOMoBkyo6iNXr4Bt7KjhJEtCUPkfECJRUGBclUd1pQ2HncSI-ovbml6BvUZxQMR37iFwlDwq2vqckxzQ8XY7Txkln55k0Jfa-uSv-USiEtHjFSP1a3eDKkx0OvCwWrObxPeihOkuGbdTSVAJWW5GjALOo0jPwJOoEFeREBd2IKIIxfkM0yjLfIM9m_z2jazzE28b6TbUvJjFsSYFzHcCsrQWrNJaF3t_6ju00klhq-Ehf7HcSOv/hls/index.m3u8",
+   "source": "KIBRIS KANAL T (6)",
+   "height": 0
+  },
+  "Kıbrıs TV": {
+   "tvg": "kibristv.tr",
+   "url": "http://138.226.249.38:8008/sunshine/k4Md1WL4mHXNlSKXD00N3z1Te9iIZAyCWL95VDjTaObcCDYJb3DFyF0eIjMMhA43SfXZCu3av8qIFEvytPQG6mEtXcsHQ4q4eJUJIesXyAkfMrp18KWCWboqGLV5F9G_BbvS1U0Ti4I82F1wp7Rabt6A4oaM2zBH1PcV2c6EM6o1ge4V8w1i38CFVW6XD-PX3xohpNTUOqrlZ_T_a8hGm3U6Zhv262CIkqf4fAGhzNZKcWtbH4PwqUZSTtGFBZJ0/hls/index.m3u8",
+   "source": "KIBRIS TV (6)",
+   "height": 0
+  },
+  "Kıbrıs Genç TV": {
+   "tvg": "kibrisgentv.tr",
+   "url": "http://138.226.249.38:8008/sunshine/VGvhP9c5d6VCCL-NF0Z9eCxx0zUt6kB3YUxCIKuBkCAoMoy1QdE1iWiOvw8s5LpmxBcJMHirRVqhFrEeDjPuSYtGSJxuECzPgI72Q35BO4u8-y0Pm3wack3Q5z9o7UKCVKMx9OuOcyY0a7JELc238oyqyfYYI66zC8Lmo6fwaWx3FoMesirZeIO2TV4mbcsDpkrVGZa7CgGyOquy6zrCf_5QLARad_9hRahMRt-GaVg-jFZmaFBbVL9VCsrdRjRH/hls/index.m3u8",
+   "source": "KIBRIS GENÇ TV (6)",
+   "height": 0
+  }
+ }
+}

@@ -19,6 +19,9 @@ class UiMemory {
     private val browseGenres = mutableMapOf<String, String?>()
     private val liveGroups = mutableMapOf<String, String>()
 
+    /** Uygulama acilisinda hero odagi yalnizca bir kez alinir. */
+    var heroFocusHandled = false
+
     fun grid(key: String): LazyGridState = gridStates.getOrPut(key) { LazyGridState() }
 
     fun list(key: String): LazyListState = listStates.getOrPut(key) { LazyListState() }

@@ -29,7 +29,9 @@ class LiveTvRepository(private val context: Context) {
             .onFailure { Log.w(TAG, "Kanal bilgileri güncellenemedi: ${it.message}") }
             .getOrNull() ?: return@withContext null
         val merged = (channels ?: loadAsset()).map { channel ->
-            val meta = catalog[channel.tvg] ?: catalog[normalize(channel.name)]
+            // Katalog tvg degerleri buyuk/kucuk harf degisebiliyor; kucuk harfe
+            // cevirerek eslestiriyoruz (logo + program bilgisi eksik kalmasin).
+            val meta = catalog[channel.tvg.lowercase()] ?: catalog[normalize(channel.name)]
             if (meta == null) channel else channel.copy(
                 logo = channel.logo.ifBlank { meta.logo },
                 programs = meta.programs.ifEmpty { channel.programs }
@@ -93,12 +95,41 @@ class LiveTvRepository(private val context: Context) {
             )
         }
         val preferred = result.filterNot { normalize(it.name).contains("kurdi") }
-        return preferred.sortedWith(
+        // Cekmeyen kanallarin yerine calisan kaynaklar yerlestirilir
+        // (canli_fallbacks.json - SD/720p oncelikli). Eski adres yedek olarak kalir.
+        val fallbacks = loadFallbacks()
+        val fixed = if (fallbacks.isEmpty()) preferred else preferred.map { channel ->
+            val fallback = fallbacks[channel.name]
+            if (fallback.isNullOrBlank() || fallback == channel.url) channel
+            else channel.copy(
+                url = fallback,
+                fallback = true,
+                alternates = (listOf(channel.url) + channel.alternates).distinct()
+            )
+        }
+        return fixed.sortedWith(
             compareBy<LiveChannel> { groupRank(it.group) }
                 .thenBy { desiredRank(it.name) }
                 .thenBy { it.name.lowercase() }
         )
     }
+
+    /**
+     * Cekmeyen (olu) kanallar icin hazirlanmis calisan kaynak haritasi.
+     * tools/probe_live_channels.cjs + tools/find_channel_fallbacks.cjs ile uretilir.
+     */
+    private fun loadFallbacks(): Map<String, String> = runCatching {
+        val raw = context.assets.open(FALLBACK_ASSET).bufferedReader().use { it.readText() }
+        val root = JSONObject(raw)
+        val fb = root.optJSONObject("fallbacks") ?: return emptyMap()
+        val out = HashMap<String, String>()
+        for (key in fb.keys()) {
+            val item = fb.optJSONObject(key) ?: continue
+            val url = item.optString("url")
+            if (url.startsWith("http")) out[key] = url
+        }
+        out
+    }.getOrDefault(emptyMap())
 
     private fun fetchCatalogMetadata(): Map<String, ChannelMeta> {
         val result = HashMap<String, ChannelMeta>()
@@ -139,7 +170,7 @@ class LiveTvRepository(private val context: Context) {
                         ?: logo.takeIf { it.startsWith("/") }?.let { HOST + it }.orEmpty(),
                     programs = programs
                 )
-                if (tvg.isNotBlank()) result[tvg] = entry
+                if (tvg.isNotBlank()) result[tvg.lowercase()] = entry
                 val key = normalize(meta.optString("name"))
                 if (key.isNotBlank()) result.putIfAbsent(key, entry)
             }
@@ -184,6 +215,7 @@ class LiveTvRepository(private val context: Context) {
         private const val TAG = "NotflixLive"
         private const val HOST = "http://131.123.43.89"
         private const val ASSET = "live_channels.json"
+        private const val FALLBACK_ASSET = "live_fallbacks.json"
         private const val USER_AGENT =
             "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36"
 

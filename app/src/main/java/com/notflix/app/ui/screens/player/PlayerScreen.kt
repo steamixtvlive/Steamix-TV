@@ -210,6 +210,8 @@ fun PlayerScreen(
     var muted by remember { mutableStateOf(volume <= 0.001f) }
     var qualityHeight by remember { mutableStateOf<Int?>(null) }
     var videoHeights by remember { mutableStateOf<List<Int>>(emptyList()) }
+    var videoInfo by remember { mutableStateOf<String?>(null) }
+    var rootBoxFocused by remember { mutableStateOf(false) }
     var posterUrl by remember { mutableStateOf("") }
     var clock by remember { mutableLongStateOf(System.currentTimeMillis()) }
     var startedAt by remember { mutableLongStateOf(System.currentTimeMillis()) }
@@ -316,6 +318,21 @@ fun PlayerScreen(
                     .distinct()
                     .sortedDescending()
                 if (heights != videoHeights) videoHeights = heights
+                val best = tracks.groups
+                    .filter { it.type == C.TRACK_TYPE_VIDEO }
+                    .flatMap { group ->
+                        (0 until group.length).mapNotNull { trackIndex ->
+                            group.getTrackFormat(trackIndex).takeIf { it.height > 0 }
+                        }
+                    }
+                    .maxByOrNull { it.height }
+                videoInfo = best?.let { format ->
+                    val fps = format.frameRate.takeIf { it > 0f }?.let { Math.round(it) }
+                    buildString {
+                        append("${format.width}×${format.height}")
+                        if (fps != null && fps > 0) append(" · $fps FPS")
+                    }
+                }
             }
         }
         player.addListener(listener)
@@ -398,7 +415,9 @@ fun PlayerScreen(
         player.playWhenReady = true
         val params = trackSelector.buildUponParameters()
         if (isLive) {
-            val cap = qualityHeight ?: 2160
+            // Cekmeyen kanal yerine konan kaynak en fazla 720p olarak sunulur.
+            val isFallback = channels.getOrNull(index)?.fallback == true
+            val cap = qualityHeight ?: if (isFallback) 720 else 2160
             params.setMaxVideoSize(cap, cap)
         } else {
             params.clearVideoSizeConstraints()
@@ -473,6 +492,18 @@ fun PlayerScreen(
         if (!controlsVisible || panelOpen || qualityOpen) return@LaunchedEffect
         delay(120)
         runCatching { controlsFocus.requestFocus() }
+    }
+
+    // Film/dizide oynat dugmesi yalnizca tampon bitince olusuyor; ilk acilista
+    // odak kontrollere ulasana kadar birkac kez denenir. Canli TV'yi etkilemez.
+    LaunchedEffect(controlsVisible, panelOpen, qualityOpen, buffering, isLive) {
+        if (isLive || !controlsVisible || panelOpen || qualityOpen) return@LaunchedEffect
+        repeat(12) {
+            if (runCatching { controlsFocus.requestFocus() }.isSuccess) {
+                return@LaunchedEffect
+            }
+            delay(150)
+        }
     }
 
     // Panel acildiginda odak kanal listesine gider ve panel kapaliyken
@@ -582,6 +613,26 @@ fun PlayerScreen(
                         panelOpen = false
                         qualityOpen = false
                         true
+                    }
+                    // Panel acikken kumandanin ozel kanal tuslari yine de
+                    // kanal degistirir (menude gezinmeyi engellemez).
+                    android.view.KeyEvent.KEYCODE_CHANNEL_UP,
+                    android.view.KeyEvent.KEYCODE_MEDIA_NEXT -> {
+                        if (isLive && channels.size > 1) {
+                            zap(1)
+                            true
+                        } else {
+                            false
+                        }
+                    }
+                    android.view.KeyEvent.KEYCODE_CHANNEL_DOWN,
+                    android.view.KeyEvent.KEYCODE_MEDIA_PREVIOUS -> {
+                        if (isLive && channels.size > 1) {
+                            zap(-1)
+                            true
+                        } else {
+                            false
+                        }
                     }
                     else -> false
                 }
@@ -724,6 +775,7 @@ fun PlayerScreen(
             // Kutu kendisi focusable olmalı; aksi halde kontroller gizlenince
             // odak tamamen kayboluyor ve kumanda tuşları çalışmıyordu.
             .focusable()
+            .onFocusChanged { rootBoxFocused = it.isFocused }
             .onPreviewKeyEvent { event ->
                 if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                 // Her kumanda hareketi otomatik gizlenme sayacini sifirlar.
@@ -769,6 +821,17 @@ fun PlayerScreen(
                         android.view.KeyEvent.KEYCODE_MEDIA_PREVIOUS -> {
                             zap(-1)
                             true
+                        }
+                    }
+                }
+                // Film/dizide kontroller acikken odak ana kutudaysa ilk tus
+                // kontrollere girer; boylece acilir acilmaz mudahale edilebilir.
+                if (!isLive && controlsVisible && rootBoxFocused) {
+                    when (event.key) {
+                        Key.DirectionUp, Key.DirectionDown, Key.DirectionLeft,
+                        Key.DirectionRight, Key.DirectionCenter, Key.Enter, Key.Spacebar -> {
+                            runCatching { controlsFocus.requestFocus() }
+                            return@onKeyEvent true
                         }
                     }
                 }
@@ -1071,6 +1134,27 @@ fun PlayerScreen(
                         )
                     }
                 }
+            }
+        }
+
+        // Canli yayinda cozunurluk ve FPS bilgisi sag ustte durur.
+        if (isLive) {
+            videoInfo?.let { info ->
+                Text(
+                    text = info,
+                    color = Color.White.copy(alpha = 0.78f),
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(
+                            end = if (isTv) 18.dp else 12.dp,
+                            top = if (isTv) 78.dp else 58.dp
+                        )
+                        .clip(RoundedCornerShape(50))
+                        .background(Color.Black.copy(alpha = 0.45f))
+                        .padding(horizontal = 8.dp, vertical = 3.dp)
+                )
             }
         }
 

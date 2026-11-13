@@ -35,12 +35,14 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -77,10 +79,12 @@ import com.notflix.app.ui.components.NotflixButton
 import com.notflix.app.ui.components.focusBringIntoView
 import com.notflix.app.ui.components.isTvLayout
 import com.notflix.app.ui.components.screenPadding
+import com.notflix.app.ui.screens.player.PlayerKeyBus
 import com.notflix.app.ui.theme.NotflixColors
 import com.notflix.app.ui.theme.NotflixTheme
 import com.notflix.app.NotflixApplication
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import java.util.concurrent.TimeoutException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -99,7 +103,10 @@ fun HomeScreen(
     onSeeAll: (sectionTitle: String, moreUrl: String) -> Unit,
     onRemoveResume: (WatchEntry) -> Unit = {},
     listState: LazyListState = rememberLazyListState(),
-    resumeListState: LazyListState = rememberLazyListState()
+    resumeListState: LazyListState = rememberLazyListState(),
+    autoFocusHero: Boolean = false,
+    onAutoFocusDone: () -> Unit = {},
+    memory: com.notflix.app.ui.UiMemory = com.notflix.app.ui.UiMemory()
 ) {
     val context = LocalContext.current
     val app = context.applicationContext as NotflixApplication
@@ -144,7 +151,10 @@ fun HomeScreen(
                 onSeeAll = onSeeAll,
                 onRemoveResume = onRemoveResume,
                 listState = listState,
-                resumeListState = resumeListState
+                resumeListState = resumeListState,
+                autoFocusHero = autoFocusHero,
+                onAutoFocusDone = onAutoFocusDone,
+                memory = memory
             )
         }
     }
@@ -158,7 +168,10 @@ private fun HomeContent(
     onSeeAll: (sectionTitle: String, moreUrl: String) -> Unit,
     onRemoveResume: (WatchEntry) -> Unit = {},
     listState: LazyListState = rememberLazyListState(),
-    resumeListState: LazyListState = rememberLazyListState()
+    resumeListState: LazyListState = rememberLazyListState(),
+    autoFocusHero: Boolean = false,
+    onAutoFocusDone: () -> Unit = {},
+    memory: com.notflix.app.ui.UiMemory = com.notflix.app.ui.UiMemory()
 ) {
     val hero = data.hero
     val pagerState = rememberPagerState(pageCount = { hero.size })
@@ -167,6 +180,43 @@ private fun HomeContent(
     val app = context.applicationContext as NotflixApplication
     var heroFocused by remember { mutableStateOf(false) }
     val heroPlayFocus = remember { FocusRequester() }
+    val view = LocalView.current
+    val latestHeroReady by rememberUpdatedState(hero.isNotEmpty())
+
+    // Uygulama acilisinda odak hero slaytina gelir; alt satirlarda baslamaz.
+    LaunchedEffect(Unit) {
+        if (autoFocusHero && hero.isNotEmpty()) {
+            delay(320)
+            runCatching { heroPlayFocus.requestFocus() }
+            onAutoFocusDone()
+        }
+    }
+
+    // Listede hicbir oge secili degilken (ornegin detaydan donuste) ilk tus
+    // sayfa basindaysa hero'ya, degilse dokunmadan normal akisa birakilir.
+    DisposableEffect(Unit) {
+        val handler: (Int) -> Boolean = { keyCode ->
+            if (latestHeroReady && !view.hasFocus() &&
+                listState.firstVisibleItemIndex == 0 &&
+                listState.firstVisibleItemScrollOffset == 0
+            ) {
+                when (keyCode) {
+                    android.view.KeyEvent.KEYCODE_DPAD_UP,
+                    android.view.KeyEvent.KEYCODE_DPAD_DOWN,
+                    android.view.KeyEvent.KEYCODE_DPAD_LEFT,
+                    android.view.KeyEvent.KEYCODE_DPAD_RIGHT,
+                    android.view.KeyEvent.KEYCODE_DPAD_CENTER,
+                    android.view.KeyEvent.KEYCODE_ENTER,
+                    android.view.KeyEvent.KEYCODE_NUMPAD_ENTER -> runCatching {
+                        heroPlayFocus.requestFocus()
+                    }.isSuccess
+                    else -> false
+                }
+            } else false
+        }
+        PlayerKeyBus.register(handler)
+        onDispose { PlayerKeyBus.unregister(handler) }
+    }
     val resumeEntries = remember(data) {
         app.settings.watchHistory()
             .groupBy { it.seriesKey }
@@ -180,7 +230,7 @@ private fun HomeContent(
     LaunchedEffect(hero.size) {
         if (hero.size <= 1) return@LaunchedEffect
         while (true) {
-            delay(3_500)
+            delay(6_000)
             if (!heroFocused && !pagerState.isScrollInProgress) {
                 pagerState.animateScrollToPage((pagerState.currentPage + 1) % hero.size)
             }
@@ -196,7 +246,7 @@ private fun HomeContent(
                 if (event.type == KeyEventType.KeyDown &&
                     event.key == Key.DirectionUp &&
                     !heroFocused &&
-                    listState.firstVisibleItemIndex == 0 &&
+                    listState.firstVisibleItemIndex <= 1 &&
                     hero.isNotEmpty()
                 ) {
                     val moved = runCatching { heroPlayFocus.requestFocus() }.isSuccess
@@ -286,11 +336,14 @@ private fun HomeContent(
 
         items(data.sections.size, key = { "section-${data.sections[it].title}" }) { index ->
             val section: HomeSection = data.sections[index]
+            // Her rayin yatay konumu saklanir; geri donuldugunde ayni yerde kalir.
+            val rowState = remember(section.title) { memory.list("home-row-" + section.title) }
             MediaRow(
                 title = section.title,
                 items = section.items,
                 onItemClick = { card -> onOpenDetail(card.url, card.title) },
-                onSeeAll = { onSeeAll(section.title, section.moreUrl) }
+                onSeeAll = { onSeeAll(section.title, section.moreUrl) },
+                listState = rowState
             )
         }
 
