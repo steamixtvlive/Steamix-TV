@@ -12,8 +12,8 @@ android {
         applicationId = "com.notflix.app"
         minSdk = 24
         targetSdk = 36
-        versionCode = 12
-        versionName = "1.0.8"
+        versionCode = 13
+        versionName = "1.0.9"
         vectorDrawables.useSupportLibrary = true
     }
 

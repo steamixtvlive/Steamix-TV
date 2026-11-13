@@ -95,21 +95,12 @@ class LiveTvRepository(private val context: Context) {
             )
         }
         val preferred = result.filterNot { normalize(it.name).contains("kurdi") }
-        // Calisan kaynak bulunamayan olu kanallar listeden cikarilir.
-        // Diger kanallarin adresi DEGISTIRILMEZ (calisan kanal bozulur);
-        // onlarin yerine yeni kaynak sadece alternatif olarak eklenir ve
-        // oynatici bir hata aldiginda sırayla dener.
-        val fallbacks = loadFallbacks()
+        // Cekmeyen (olmayan) kanallar listeden cikarilir: calisan bir kaynagi
+        // olsa bile gec acilan bu kanallar kullaniciyi bekletiyor, bu yuzden
+        // tercih edilen kaynak (canli_fallbacks.json) degistirilmiyor ve
+        // o kanallar listede gosterilmiyor.
         val dead = loadDeadChannels()
-        val fixed = preferred.mapNotNull { channel ->
-            val fallback = fallbacks[channel.name]
-            when {
-                fallback == null && dead.contains(channel.name) -> null
-                fallback != null && fallback != channel.url && !channel.alternates.contains(fallback) ->
-                    channel.copy(alternates = listOf(fallback) + channel.alternates)
-                else -> channel
-            }
-        }
+        val fixed = preferred.filterNot { dead.contains(it.name) }
         return fixed.sortedWith(
             compareBy<LiveChannel> { groupRank(it.group) }
                 .thenBy { desiredRank(it.name) }

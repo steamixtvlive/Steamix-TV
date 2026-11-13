@@ -29,8 +29,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.Fullscreen
+import androidx.compose.material.icons.filled.FullscreenExit
 import androidx.compose.material.icons.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
@@ -342,6 +345,8 @@ private fun DetailContent(
     }.orEmpty()
 
     val detailScroll = rememberScrollState()
+    // Fragman tam ekran modu: sayfa icerigi gizlenir, video ekrani kaplar.
+    var trailerFullscreen by remember(detail.url) { mutableStateOf(false) }
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -406,7 +411,9 @@ private fun DetailContent(
                     )
                 )
             },
-            onPlay = { onPlay(action.first, action.second) }
+            onPlay = { onPlay(action.first, action.second) },
+            fullscreen = trailerFullscreen,
+            onToggleFullscreen = { trailerFullscreen = !trailerFullscreen }
         )
 
         if (detail.description.isNotBlank()) {
@@ -544,7 +551,9 @@ private fun DetailHero(
     progressLabel: String,
     favorite: Boolean,
     onToggleFavorite: () -> Unit,
-    onPlay: () -> Unit
+    onPlay: () -> Unit,
+    fullscreen: Boolean = false,
+    onToggleFullscreen: () -> Unit = {}
 ) {
     val tv = isTvLayout()
     val context = LocalContext.current
@@ -563,16 +572,22 @@ private fun DetailHero(
     }
 
     Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(if (tv) 540.dp else 430.dp)
+        modifier = if (fullscreen) {
+            Modifier.fillMaxSize().background(Color.Black)
+        } else {
+            Modifier
+                .fillMaxWidth()
+                .height(if (tv) 540.dp else 430.dp)
+        }
     ) {
-        AsyncImage(
-            model = detail.backdrop.ifBlank { detail.poster },
-            contentDescription = detail.title,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize()
-        )
+        if (!fullscreen) {
+            AsyncImage(
+                model = detail.backdrop.ifBlank { detail.poster },
+                contentDescription = detail.title,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+        }
         val key = trailerKeys.getOrNull(trailerIndex)
         if (key != null && !trailerFailed) {
             TrailerPlayer(
@@ -653,7 +668,27 @@ private fun DetailHero(
                     else "Fragmanı oynat",
                     onClick = { trailerPlaying = !trailerPlaying }
                 )
+                TrailerControl(
+                    icon = if (fullscreen) Icons.Filled.FullscreenExit else Icons.Filled.Fullscreen,
+                    contentDescription = if (fullscreen) "Tam ekrandan çık" else "Tam ekran",
+                    onClick = onToggleFullscreen
+                )
             }
+        }
+        if (fullscreen) {
+            // Tam ekranda sol ustte kapat dugmesi.
+            IconAction(
+                icon = Icons.Filled.Close,
+                contentDescription = "Tam ekrandan çık",
+                onClick = onToggleFullscreen,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(
+                        start = screenPadding(),
+                        top = if (tv) 18.dp else 10.dp
+                    )
+                    .background(Color.Black.copy(alpha = 0.55f), CircleShape)
+            )
         }
         Row(
             modifier = Modifier

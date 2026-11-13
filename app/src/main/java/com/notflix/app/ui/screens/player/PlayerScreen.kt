@@ -42,6 +42,7 @@ import androidx.compose.material.icons.filled.LiveTv
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.VolumeOff
@@ -213,6 +214,9 @@ fun PlayerScreen(
     var videoInfo by remember { mutableStateOf<String?>(null) }
     // Canli yayinda kontrol barinda gosterilecek kalite etiketi (orn. "1080p").
     var liveQualityLabel by remember { mutableStateOf<String?>(null) }
+    // Oynatma hizi (film/dizi).
+    var playbackSpeed by remember { mutableStateOf(1f) }
+    var speedNotice by remember { mutableStateOf<String?>(null) }
     var rootBoxFocused by remember { mutableStateOf(false) }
     var posterUrl by remember { mutableStateOf("") }
     var clock by remember { mutableLongStateOf(System.currentTimeMillis()) }
@@ -712,6 +716,24 @@ fun PlayerScreen(
                             false
                         }
                     }
+                    // Medya tuslari: hizli sarma / geri sarma (kumanda ve klavye)
+                    android.view.KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> {
+                        seekBy(10_000)
+                        true
+                    }
+                    android.view.KeyEvent.KEYCODE_MEDIA_REWIND -> {
+                        seekBy(-10_000)
+                        true
+                    }
+                    android.view.KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
+                    android.view.KeyEvent.KEYCODE_MEDIA_PLAY -> {
+                        togglePlay()
+                        true
+                    }
+                    android.view.KeyEvent.KEYCODE_MEDIA_STOP -> {
+                        controlsVisible = true
+                        true
+                    }
                     else -> false
                 }
             }
@@ -836,13 +858,19 @@ fun PlayerScreen(
                         }
                     }
                 }
-                // Film/dizide kontroller acikken odak ana kutudaysa ilk tus
-                // kontrollere girer; sonra ok tuslari kontroller arasinda gezinir.
+                // Film/dizide kontroller acikken odak ana kutudaysa ok tuslari
+                // kontrol barindaki dugmelere gecsin (yutulmasin).
                 if (!isLive && controlsVisible && rootBoxFocused) {
                     when (event.key) {
-                        Key.DirectionUp, Key.DirectionDown,
-                        Key.DirectionLeft, Key.DirectionRight -> {
-                            runCatching { controlsFocus.requestFocus() }
+                        Key.DirectionDown, Key.DirectionRight -> {
+                            val moved = runCatching {
+                                focusManager.moveFocus(FocusDirection.Down)
+                            }.isSuccess
+                            if (!moved) runCatching { controlsFocus.requestFocus() }
+                            return@onKeyEvent true
+                        }
+                        Key.DirectionUp, Key.DirectionLeft -> {
+                            focusManager.moveFocus(FocusDirection.Up)
                             return@onKeyEvent true
                         }
                         Key.DirectionCenter, Key.Enter, Key.Spacebar -> {
@@ -1115,6 +1143,33 @@ fun PlayerScreen(
                         }
                         Spacer(modifier = Modifier.weight(1f))
                         if (!isLive) {
+                            // Oynatma hizi (1x / 1.25x / 1.5x / 2x / 0.75x)
+                            ControlCircle(
+                                icon = Icons.Filled.Speed,
+                                contentDescription = "Oynatma hızı",
+                                size = if (isTv) 38.dp else 34.dp,
+                                filled = false,
+                                onClick = {
+                                    val next = when (playbackSpeed) {
+                                        1f -> 1.25f
+                                        1.25f -> 1.5f
+                                        1.5f -> 2f
+                                        2f -> 0.75f
+                                        else -> 1f
+                                    }
+                                    playbackSpeed = next
+                                    player.setPlaybackSpeed(next)
+                                    speedNotice = "${if (next == next.toInt().toFloat()) next.toInt() else next}x"
+                                }
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = speedNotice ?: "${if (playbackSpeed == playbackSpeed.toInt().toFloat()) playbackSpeed.toInt() else playbackSpeed}x",
+                                color = NotflixColors.TextSecondary,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
                             // Film/dizide kalite otomatiktir; degistirilemez.
                             Text(
                                 text = liveQualityLabel ?: "Otomatik",

@@ -247,11 +247,6 @@ ActionRow(
                 )
             }
 
-            item(key = "dev-head") { SectionHeader("Geliştirici RENDIR MEDİA") }
-            item(key = "dev-card") {
-                DeveloperCard()
-            }
-
         }
     }
 }
