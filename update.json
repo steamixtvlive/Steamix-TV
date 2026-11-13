@@ -1,6 +1,6 @@
 {
-  "versionCode": 14,
-  "versionName": "1.0.10",
+  "versionCode": 15,
+  "versionName": "1.0.11",
   "apkUrl": "https://github.com/steamixtvlive/Steamix-TV/releases/latest/download/notflix.apk",
-  "notes": "Ana sayfa hero görünürlüğü ve odak gezinmesi, film/dizi oynatıcı kumanda kontrolleri ve güncelleme denetleme odağı iyileştirildi. Sık güncellemeler gelmeye devam edecek."
+  "notes": "Ana sayfada kumanda odağı hero'ya geldiğinde slayt alanının tamamı görünür hale getirildi."
 }
