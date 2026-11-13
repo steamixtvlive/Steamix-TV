@@ -62,10 +62,8 @@ import kotlinx.coroutines.withContext
 @Composable
 fun SettingsScreen(
     onBack: () -> Unit,
-    onReplayIntro: () -> Unit,
-    onExitApp: () -> Unit = {}
-) {
-    val context = LocalContext.current
+    onReplayIntro: () -> Unit
+) {    val context = LocalContext.current
     val app = context.applicationContext as NotflixApplication
     val settings = app.settings
     val scope = rememberCoroutineScope()
@@ -249,9 +247,9 @@ ActionRow(
                 )
             }
 
-            item(key = "exit-head") { SectionHeader("Uygulama") }
-            item(key = "exit-card") {
-                ExitButton(onClick = onExitApp)
+            item(key = "dev-head") { SectionHeader("Geliştirici RENDIR MEDİA") }
+            item(key = "dev-card") {
+                DeveloperCard()
             }
 
         }

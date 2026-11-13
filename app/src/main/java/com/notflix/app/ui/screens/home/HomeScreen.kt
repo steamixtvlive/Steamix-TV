@@ -261,8 +261,9 @@ private fun HomeContent(
         item(key = "hero") {
             BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
                 val tv = isTvLayout()
-                val heroHeight = if (tv) 520.dp
-                else (maxWidth * 0.82f).coerceIn(340.dp, 470.dp)
+                // Hero tam gorunecek kadar kisa tutulur (yukari/alt kesilmesin).
+                val heroHeight = if (tv) 440.dp
+                else (maxWidth * 0.78f).coerceIn(300.dp, 420.dp)
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -392,20 +393,10 @@ private fun ResumeRow(
             horizontalArrangement = Arrangement.spacedBy(if (tv) 14.dp else 10.dp)
         ) {
             items(entries, key = { it.url + it.updatedAt }) { entry ->
-                Column(modifier = Modifier.width(if (tv) 330.dp else 272.dp)) {
-                    ResumePreviewCard(
-                        entry = entry,
-                        onClick = { onResume(entry) }
-                    )
-                    // Kitaplik ve "Devam Et" ile ayni format: Sil dugmesi
-                    // kartin altinda, kartin disinda.
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-                        horizontalArrangement = Arrangement.End
-                    ) {
-                        DeleteButton(onClick = { onRemove(entry) })
-                    }
-                }
+                ResumePreviewCard(
+                    entry = entry,
+                    onClick = { onResume(entry) }
+                )
             }
         }
     }
@@ -421,7 +412,7 @@ private fun ResumePreviewCard(
     val shape = RoundedCornerShape(12.dp)
     Row(
         modifier = Modifier
-            .fillMaxWidth()
+            .width(if (tv) 330.dp else 272.dp)
             .clip(shape)
             .background(if (focused) Color.White.copy(alpha = 0.08f) else NotflixColors.Card)
             .border(

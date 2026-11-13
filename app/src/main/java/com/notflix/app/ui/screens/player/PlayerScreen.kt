@@ -837,11 +837,15 @@ fun PlayerScreen(
                     }
                 }
                 // Film/dizide kontroller acikken odak ana kutudaysa ilk tus
-                // kontrollere girer; boylece acilir acilmaz mudahale edilebilir.
+                // kontrollere girer; sonra ok tuslari kontroller arasinda gezinir.
                 if (!isLive && controlsVisible && rootBoxFocused) {
                     when (event.key) {
-                        Key.DirectionUp, Key.DirectionDown, Key.DirectionLeft,
-                        Key.DirectionRight, Key.DirectionCenter, Key.Enter, Key.Spacebar -> {
+                        Key.DirectionUp, Key.DirectionDown,
+                        Key.DirectionLeft, Key.DirectionRight -> {
+                            runCatching { controlsFocus.requestFocus() }
+                            return@onKeyEvent true
+                        }
+                        Key.DirectionCenter, Key.Enter, Key.Spacebar -> {
                             runCatching { controlsFocus.requestFocus() }
                             return@onKeyEvent true
                         }

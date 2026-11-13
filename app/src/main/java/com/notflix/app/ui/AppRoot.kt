@@ -334,8 +334,7 @@ fun AppRoot() {
                                 onReplayIntro = {
                                     openRoot(Screen.Home)
                                     stage = Stage.Intro
-                                },
-                                onExitApp = { exitApp() }
+                                }
                             )
                             is Screen.Detail -> DetailScreen(
                                 url = screen.url,
@@ -484,22 +483,23 @@ private fun ExitGlowOverlay(onDone: () -> Unit) {
         Column(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(bottom = if (isTvLayout()) 60.dp else 40.dp),
+                .padding(bottom = if (isTvLayout()) 56.dp else 38.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
                 text = "RENDIR MEDİA 2027",
-                color = Color.White.copy(alpha = 0.72f),
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Medium,
-                letterSpacing = 3.sp
+                color = Color.White,
+                fontSize = if (isTvLayout()) 17.sp else 14.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 4.sp
             )
             Spacer(Modifier.height(6.dp))
             Text(
                 text = "TÜM HAKLARI SAKLIDIR",
-                color = Color.White.copy(alpha = 0.38f),
-                fontSize = 9.5.sp,
-                letterSpacing = 2.sp
+                color = Color.White.copy(alpha = 0.62f),
+                fontSize = if (isTvLayout()) 12.sp else 10.sp,
+                fontWeight = FontWeight.Medium,
+                letterSpacing = 2.5.sp
             )
         }
     }

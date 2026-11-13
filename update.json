@@ -1,6 +1,6 @@
 {
-  "versionCode": 11,
-  "versionName": "1.0.7",
+  "versionCode": 12,
+  "versionName": "1.0.8",
   "apkUrl": "https://github.com/steamixtvlive/Steamix-TV/releases/latest/download/notflix.apk",
-  "notes": "Film ve dizilerde kalite artık gerçek çözünürlüğü gösteriyor. Odaklanan içerik ekran kenarında yarım kalmıyor. 'Devam Et' silme düğmesi Kitaplık ile aynı formatta. TRT Türk ve TRT Avaz için yeni kaynaklar eklendi. Çıkış animasyonu uzatıldı, marka adı altına yazıldı. Sık güncellemeler gelmeye devam edecek."
+  "notes": "Canlı TV kanalları düzeltildi, poster ve 'Tümünü Gör' görünümü güzelleştirildi, oynatıcı kontrolleri düzeltildi. Sık güncellemeler gelmeye devam edecek."
 }

@@ -505,6 +505,28 @@ fun PosterCard(
                         )
                     )
             )
+            // Cam efekti: poster net kalir, sadece uzerinde ince bir parlaklik
+            // ve cam dokunusu hissedilir (bulaniklik yok).
+            if (focused) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.linearGradient(
+                                listOf(
+                                    Color.White.copy(alpha = 0.16f),
+                                    Color.White.copy(alpha = 0.04f),
+                                    Color.Transparent
+                                )
+                            )
+                        )
+                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .border(1.dp, Color.White.copy(alpha = 0.30f), shape)
+                )
+            }
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -632,17 +654,41 @@ fun MediaRow(
                 modifier = Modifier.weight(1f)
             )
             if (onSeeAll != null) {
-                Text(
-                    text = "Tümünü Gör →",
-                    color = NotflixColors.AccentSoft,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold,
+                var seeAllFocused by remember { mutableStateOf(false) }
+                Row(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(6.dp))
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(
+                            if (seeAllFocused) NotflixColors.Accent.copy(alpha = 0.32f)
+                            else NotflixColors.Accent.copy(alpha = 0.14f)
+                        )
+                        .border(
+                            1.dp,
+                            if (seeAllFocused) Color.White.copy(alpha = 0.75f)
+                            else NotflixColors.Accent.copy(alpha = 0.55f),
+                            RoundedCornerShape(999.dp)
+                        )
                         .focusBringIntoView()
+                        .onFocusChanged { seeAllFocused = it.isFocused }
                         .clickable(onClick = onSeeAll)
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                )
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Tümünü Gör",
+                        color = NotflixColors.AccentSoft,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1
+                    )
+                    Spacer(modifier = Modifier.width(3.dp))
+                    Icon(
+                        imageVector = Icons.Filled.KeyboardArrowRight,
+                        contentDescription = null,
+                        tint = NotflixColors.AccentSoft,
+                        modifier = Modifier.size(15.dp)
+                    )
+                }
             }
         }
         LazyRow(

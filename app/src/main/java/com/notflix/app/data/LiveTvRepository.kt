@@ -95,21 +95,18 @@ class LiveTvRepository(private val context: Context) {
             )
         }
         val preferred = result.filterNot { normalize(it.name).contains("kurdi") }
-        // Cekmeyen kanallarin yerine calisan kaynaklar yerlestirilir
-        // (canli_fallbacks.json - SD/720p oncelikli). Eski adres yedek olarak kalir.
-        // Calisan kaynak bulunamayan kanal (ornegin beIN, Exxen, GS TV gibi
-        // abonelik gerektirenler) listeden tamamen cikarilir.
+        // Calisan kaynak bulunamayan olu kanallar listeden cikarilir.
+        // Diger kanallarin adresi DEGISTIRILMEZ (calisan kanal bozulur);
+        // onlarin yerine yeni kaynak sadece alternatif olarak eklenir ve
+        // oynatici bir hata aldiginda sırayla dener.
         val fallbacks = loadFallbacks()
         val dead = loadDeadChannels()
         val fixed = preferred.mapNotNull { channel ->
             val fallback = fallbacks[channel.name]
             when {
-                fallback != null && fallback != channel.url -> channel.copy(
-                    url = fallback,
-                    fallback = true,
-                    alternates = (listOf(channel.url) + channel.alternates).distinct()
-                )
                 fallback == null && dead.contains(channel.name) -> null
+                fallback != null && fallback != channel.url && !channel.alternates.contains(fallback) ->
+                    channel.copy(alternates = listOf(fallback) + channel.alternates)
                 else -> channel
             }
         }
