@@ -211,6 +211,8 @@ fun PlayerScreen(
     var qualityHeight by remember { mutableStateOf<Int?>(null) }
     var videoHeights by remember { mutableStateOf<List<Int>>(emptyList()) }
     var videoInfo by remember { mutableStateOf<String?>(null) }
+    // Canli yayinda kontrol barinda gosterilecek kalite etiketi (orn. "1080p").
+    var liveQualityLabel by remember { mutableStateOf<String?>(null) }
     var rootBoxFocused by remember { mutableStateOf(false) }
     var posterUrl by remember { mutableStateOf("") }
     var clock by remember { mutableLongStateOf(System.currentTimeMillis()) }
@@ -333,6 +335,8 @@ fun PlayerScreen(
                         if (fps != null && fps > 0) append(" · $fps FPS")
                     }
                 }
+                // Kontrol barinda gosterilecek kalite etiketi (orn. "1080p").
+                liveQualityLabel = best?.let { heightLabel(it.height) }
             }
         }
         player.addListener(listener)
@@ -1099,8 +1103,9 @@ fun PlayerScreen(
                         }
                         Spacer(modifier = Modifier.weight(1f))
                         if (!isLive) {
+                            // Film/dizide kalite otomatiktir; degistirilemez.
                             Text(
-                                text = qualityLabel(qualityHeight),
+                                text = liveQualityLabel ?: "Otomatik",
                                 color = NotflixColors.TextSecondary,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Medium
@@ -1108,7 +1113,7 @@ fun PlayerScreen(
                             Spacer(modifier = Modifier.width(6.dp))
                             ControlCircle(
                                 icon = Icons.Filled.Settings,
-                                contentDescription = "Kalite",
+                                contentDescription = "Kalite (otomatik)",
                                 size = if (isTv) 38.dp else 34.dp,
                                 filled = false,
                                 onClick = { qualityOpen = true }
@@ -1116,6 +1121,16 @@ fun PlayerScreen(
                             Spacer(modifier = Modifier.width(6.dp))
                         }
                         if (isLive) {
+                            // Yayin kalitesi kontrol barinin saginda gorunur.
+                            liveQualityLabel?.let { label ->
+                                Text(
+                                    text = label,
+                                    color = NotflixColors.TextSecondary,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                            }
                             ControlCircle(
                                 icon = Icons.Filled.LiveTv,
                                 contentDescription = "Kanal listesi",
@@ -1137,26 +1152,7 @@ fun PlayerScreen(
             }
         }
 
-        // Canli yayinda cozunurluk ve FPS bilgisi sag ustte durur.
-        if (isLive) {
-            videoInfo?.let { info ->
-                Text(
-                    text = info,
-                    color = Color.White.copy(alpha = 0.78f),
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(
-                            end = if (isTv) 18.dp else 12.dp,
-                            top = if (isTv) 78.dp else 58.dp
-                        )
-                        .clip(RoundedCornerShape(50))
-                        .background(Color.Black.copy(alpha = 0.45f))
-                        .padding(horizontal = 8.dp, vertical = 3.dp)
-                )
-            }
-        }
+        // Canli yayinda cozunurluk bilgisi kontrol barinin saginda gosterilir.
 
         aspectNotice?.let { label ->
             Box(
@@ -1230,6 +1226,7 @@ fun PlayerScreen(
             QualityPanel(
                 heights = videoHeights,
                 selected = qualityHeight,
+                autoOnly = !isLive,
                 onSelect = { applyQuality(it) },
                 onClose = { qualityOpen = false }
             )
@@ -1635,7 +1632,8 @@ private fun QualityPanel(
     heights: List<Int>,
     selected: Int?,
     onSelect: (Int?) -> Unit,
-    onClose: () -> Unit
+    onClose: () -> Unit,
+    autoOnly: Boolean = false
 ) {
     val firstRowFocus = remember { FocusRequester() }
     LaunchedEffect(Unit) {
@@ -1675,6 +1673,7 @@ private fun QualityPanel(
                 }
             )
             heights.forEach { height ->
+                if (autoOnly) return@forEach
                 QualityRow(
                     label = heightLabel(height),
                     selected = selected == height,
@@ -1684,7 +1683,7 @@ private fun QualityPanel(
                     }
                 )
             }
-            if (heights.isNotEmpty() && heights.max() < 1080) {
+            if (!autoOnly && heights.isNotEmpty() && heights.max() < 1080) {
                 QualityRow(
                     label = "1080p",
                     selected = selected == 1080,
@@ -1694,7 +1693,14 @@ private fun QualityPanel(
                     }
                 )
             }
-            if (heights.isEmpty()) {
+            if (autoOnly) {
+                Text(
+                    text = "Film ve dizilerde kalite otomatik olarak seçilir.",
+                    color = NotflixColors.TextMuted,
+                    fontSize = 11.sp,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+                )
+            } else if (heights.isEmpty()) {
                 Text(
                     text = "Yayın başladığında seçenekler görünür.",
                     color = NotflixColors.TextMuted,

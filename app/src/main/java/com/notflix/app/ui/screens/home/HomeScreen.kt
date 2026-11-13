@@ -241,19 +241,16 @@ private fun HomeContent(
         modifier = Modifier
             .fillMaxSize()
             .onPreviewKeyEvent { event ->
-                // Sayfa yukari kaydirilirken odak once hero slaytina gelsin;
-                // hero zaten seciliyse tus normal akista nav sekmelerine gecer.
+                // Odak kayboldugunde (ornegin detaydan donuste) ilk tus
+                // hero'ya geri doner. Normal akista hicbir tus yakalanmaz:
+                // odak satirlar arasinda tek tek ilerler.
                 if (event.type == KeyEventType.KeyDown &&
-                    event.key == Key.DirectionUp &&
-                    !heroFocused &&
-                    listState.firstVisibleItemIndex <= 1 &&
+                    !view.hasFocus() &&
+                    listState.firstVisibleItemIndex == 0 &&
+                    listState.firstVisibleItemScrollOffset == 0 &&
                     hero.isNotEmpty()
                 ) {
-                    val moved = runCatching { heroPlayFocus.requestFocus() }.isSuccess
-                    if (moved) {
-                        scope.launch { listState.animateScrollToItem(0) }
-                    }
-                    moved
+                    runCatching { heroPlayFocus.requestFocus() }.isSuccess
                 } else {
                     false
                 }

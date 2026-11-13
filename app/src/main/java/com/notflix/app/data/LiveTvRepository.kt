@@ -97,15 +97,21 @@ class LiveTvRepository(private val context: Context) {
         val preferred = result.filterNot { normalize(it.name).contains("kurdi") }
         // Cekmeyen kanallarin yerine calisan kaynaklar yerlestirilir
         // (canli_fallbacks.json - SD/720p oncelikli). Eski adres yedek olarak kalir.
+        // Calisan kaynak bulunamayan kanal (ornegin beIN, Exxen, GS TV gibi
+        // abonelik gerektirenler) listeden tamamen cikarilir.
         val fallbacks = loadFallbacks()
-        val fixed = if (fallbacks.isEmpty()) preferred else preferred.map { channel ->
+        val dead = loadDeadChannels()
+        val fixed = preferred.mapNotNull { channel ->
             val fallback = fallbacks[channel.name]
-            if (fallback.isNullOrBlank() || fallback == channel.url) channel
-            else channel.copy(
-                url = fallback,
-                fallback = true,
-                alternates = (listOf(channel.url) + channel.alternates).distinct()
-            )
+            when {
+                fallback != null && fallback != channel.url -> channel.copy(
+                    url = fallback,
+                    fallback = true,
+                    alternates = (listOf(channel.url) + channel.alternates).distinct()
+                )
+                fallback == null && dead.contains(channel.name) -> null
+                else -> channel
+            }
         }
         return fixed.sortedWith(
             compareBy<LiveChannel> { groupRank(it.group) }
@@ -113,6 +119,14 @@ class LiveTvRepository(private val context: Context) {
                 .thenBy { it.name.lowercase() }
         )
     }
+
+    /** Cekmeyen kanal isimleri (calisan kaynak bulunamayanlar). */
+    private fun loadDeadChannels(): Set<String> = runCatching {
+        val raw = context.assets.open(FALLBACK_ASSET).bufferedReader().use { it.readText() }
+        val root = JSONObject(raw)
+        val array = root.optJSONArray("deadChannels") ?: JSONArray()
+        (0 until array.length()).mapNotNull { array.optString(it).takeIf { s -> s.isNotBlank() } }.toSet()
+    }.getOrDefault(emptySet())
 
     /**
      * Cekmeyen (olu) kanallar icin hazirlanmis calisan kaynak haritasi.

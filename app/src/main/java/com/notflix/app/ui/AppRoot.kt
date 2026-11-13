@@ -220,7 +220,8 @@ fun AppRoot() {
                             },
                             onSearch = { openRoot(Screen.Search) },
                             onSettings = { push(Screen.Settings) },
-                            onLogoClick = { openRoot(Screen.Home) }
+                            onLogoClick = { openRoot(Screen.Home) },
+                            onExit = { exitConfirm = true }
                         )
                     }
                     Crossfade(

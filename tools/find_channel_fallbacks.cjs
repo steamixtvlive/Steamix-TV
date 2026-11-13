@@ -127,8 +127,9 @@ function qualityScore(name) {
         const p = await probe(stream);
         if (!p.ok) continue;
         const height = p.body && p.body.includes('#EXTM3U') ? maxResolution(p.body) : 0;
-        // 720p uzerini istemiyoruz: SD/720p tercih edildi, olmuyorsa 1080p de olur.
-        fallbacks[tvg] = { url: stream, source: v.name, height: height || 0 };
+        // Kalici olarak /live/play/ adresini sakliyoruz; uygulama her oynatmada
+        // yeniden cozer (cozulmus stream adresleri zamanla olur).
+        fallbacks[tvg] = { url: v.url, source: v.name, height: height || 0 };
         console.log('\nOK ' + tvg + ' <- ' + v.name + (height ? ' (' + height + 'p)' : ''));
         break;
       }
@@ -137,8 +138,19 @@ function qualityScore(name) {
   }
   await Promise.all(Array.from({ length: 6 }, worker));
 
-  // 4) Yaz: olu kanalin tvg'sine gore fallback
+  // 4) Yaz: olu kanalin tvg'sine gore fallback (onceki turun sonuclari da birlesir)
   const byChannel = {};
+  // Onceki turlarda bulunmus, kalici (/live/play/) adresler korunur.
+  let prevFallbacks = {};
+  try {
+    const prevRaw = JSON.parse(fs.readFileSync(FALLBACK_FILE, 'utf8'));
+    prevFallbacks = prevRaw.fallbacks || {};
+  } catch (e) { }
+  for (const [name, v] of Object.entries(prevFallbacks)) {
+    if (v && typeof v.url === 'string' && v.url.includes('/live/play/')) {
+      byChannel[name] = v;
+    }
+  }
   for (const c of deadAssets) {
     const key = (c.t || '').toLowerCase();
     const fb = fallbacks[key];

@@ -55,6 +55,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.PowerSettingsNew
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.CircularProgressIndicator
@@ -127,7 +128,8 @@ fun NotflixTopBar(
     onTabSelected: (String) -> Unit,
     onSearch: () -> Unit,
     onSettings: () -> Unit,
-    onLogoClick: () -> Unit
+    onLogoClick: () -> Unit,
+    onExit: () -> Unit = {}
 ) {
     val tv = isTvLayout()
     val pad = screenPadding()
@@ -196,6 +198,8 @@ fun NotflixTopBar(
             IconAction(Icons.Outlined.Search, "Ara", onSearch)
             Spacer(modifier = Modifier.width(2.dp))
             IconAction(Icons.Outlined.Settings, "Ayarlar", onSettings)
+            Spacer(modifier = Modifier.width(2.dp))
+            IconAction(Icons.Outlined.PowerSettingsNew, "Uygulamadan çık", onExit)
         }
         Box(
             modifier = Modifier
