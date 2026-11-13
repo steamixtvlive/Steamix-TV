@@ -86,7 +86,6 @@ import com.notflix.app.ui.theme.NotflixColors
 import com.notflix.app.ui.theme.NotflixTheme
 import com.notflix.app.NotflixApplication
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalView
 import java.util.concurrent.TimeoutException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -182,9 +181,6 @@ private fun HomeContent(
     val app = context.applicationContext as NotflixApplication
     var heroFocused by remember { mutableStateOf(false) }
     val heroPlayFocus = remember { FocusRequester() }
-    val heroDetailFocus = remember { FocusRequester() }
-    val view = LocalView.current
-    val latestHeroReady by rememberUpdatedState(hero.isNotEmpty())
 
     // Uygulama acilisinda odak hero slaytina gelir; alt satirlarda baslamaz.
     LaunchedEffect(Unit) {
@@ -196,26 +192,6 @@ private fun HomeContent(
         }
     }
 
-    // 1.0.3-era hero navigation: when the list is at top and focus escaped,
-    // reclaim focus on the hero instead of letting DPAD Up escape to app nav.
-    DisposableEffect(Unit) {
-        val handler: (Int) -> Boolean = { keyCode ->
-                if (keyCode == android.view.KeyEvent.KEYCODE_DPAD_UP &&
-                    latestHeroReady && !heroFocused &&
-                    listState.firstVisibleItemIndex == 0 &&
-                    listState.firstVisibleItemScrollOffset == 0
-                ) {
-                    val moved = runCatching { heroPlayFocus.requestFocus() }.isSuccess
-                    if (moved) scope.launch { listState.animateScrollToItem(0) }
-                    moved
-                } else if (keyCode == android.view.KeyEvent.KEYCODE_DPAD_UP && heroFocused) {
-                    scope.launch { listState.animateScrollToItem(0) }
-                    true
-                } else false
-        }
-        PlayerKeyBus.register(handler)
-        onDispose { PlayerKeyBus.unregister(handler) }
-    }
     val resumeEntries = remember(data) {
         app.settings.watchHistory()
             .groupBy { it.seriesKey }
@@ -240,16 +216,20 @@ private fun HomeContent(
         modifier = Modifier
             .fillMaxSize()
             .onPreviewKeyEvent { event ->
-                // Odak kayboldugunde (ornegin detaydan donuste) ilk tus
-                // hero'ya geri doner. Normal akista hicbir tus yakalanmaz:
-                // odak satirlar arasinda tek tek ilerler.
+                // 1.0.4: yukari tusu once hero odagina ve hero slaydinin
+                // basina gider; hero zaten odakliysa nav'a normal gecer.
                 if (event.type == KeyEventType.KeyDown &&
-                    !view.hasFocus() &&
+                    event.key == Key.DirectionUp &&
+                    !heroFocused &&
                     listState.firstVisibleItemIndex == 0 &&
                     listState.firstVisibleItemScrollOffset == 0 &&
                     hero.isNotEmpty()
                 ) {
-                    runCatching { heroPlayFocus.requestFocus() }.isSuccess
+                    val moved = runCatching { heroPlayFocus.requestFocus() }.isSuccess
+                    if (moved) {
+                        scope.launch { listState.animateScrollToItem(0) }
+                    }
+                    moved
                 } else {
                     false
                 }
@@ -276,8 +256,7 @@ private fun HomeContent(
                             onPlay = { onPlay(hero[page].url, hero[page].title) },
                             onDetail = { onOpenDetail(hero[page].url, hero[page].title) },
                             onHeroFocus = { heroFocused = it },
-                            playFocus = if (page == pagerState.currentPage) heroPlayFocus else null,
-                            detailFocus = if (page == pagerState.currentPage) heroDetailFocus else null
+                            playFocus = if (page == pagerState.currentPage) heroPlayFocus else null
                         )
                     }
                     if (hero.size > 1) {
