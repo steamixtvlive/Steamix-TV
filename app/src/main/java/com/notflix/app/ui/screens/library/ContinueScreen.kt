@@ -126,23 +126,36 @@ fun ContinueScreen(
             verticalArrangement = Arrangement.spacedBy(if (isTvLayout()) 18.dp else 12.dp)
         ) {
             items(all, key = { it.url }) { entry ->
-                ContinueCard(
-                    entry = entry,
-                    onClick = {
-                        if (entry.completed) onOpenDetail(entry) else onResume(entry)
-                    },
-                    onRemove = {
-                        onRemove(entry)
-                        confirmClear = false
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    ContinueCard(
+                        entry = entry,
+                        onClick = {
+                            if (entry.completed) onOpenDetail(entry) else onResume(entry)
+                        }
+                    )
+                    // Kitaplik ile ayni format: Sil dugmesi kartin altinda ve
+                    // kartin disinda (odak kartin icinde kalmasin).
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 4.dp),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        DeleteButton(
+                            onClick = {
+                                onRemove(entry)
+                                confirmClear = false
+                            }
+                        )
                     }
-                )
+                }
             }
         }
     }
 }
 
 @Composable
-private fun ContinueCard(entry: WatchEntry, onClick: () -> Unit, onRemove: () -> Unit) {
+private fun ContinueCard(entry: WatchEntry, onClick: () -> Unit) {
     var focused by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(11.dp)
     Column(
@@ -252,8 +265,6 @@ private fun ContinueCard(entry: WatchEntry, onClick: () -> Unit, onRemove: () ->
                     )
                 }
             }
-            Spacer(modifier = Modifier.width(8.dp))
-            DeleteButton(onClick = onRemove)
         }
     }
 }

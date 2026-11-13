@@ -424,7 +424,10 @@ fun PlayerScreen(
             val cap = qualityHeight ?: if (isFallback) 720 else 2160
             params.setMaxVideoSize(cap, cap)
         } else {
+            // Film/dizide kalite otomatiktir ama kaynagin sundugu en iyi
+            // cozunurluk secilir (720p'ye sabitlenmemeli).
             params.clearVideoSizeConstraints()
+            params.setMaxVideoSize(2160, 2160)
         }
         trackSelector.setParameters(params)
         startedAt = System.currentTimeMillis()
@@ -435,6 +438,11 @@ fun PlayerScreen(
         var lastSave = 0L
         while (isActive) {
             val now = System.currentTimeMillis()
+            // Gercekten oynayan video cozunurlugu (720p/1080p gibi).
+            player.videoFormat?.height?.takeIf { it > 0 }?.let { h ->
+                val label = heightLabel(h)
+                if (label != liveQualityLabel) liveQualityLabel = label
+            }
             if (isLive) {
                 clock = now
                 isPlaying = player.isPlaying

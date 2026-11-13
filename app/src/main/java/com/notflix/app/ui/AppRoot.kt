@@ -52,6 +52,7 @@ import com.notflix.app.ui.brand.NotflixWordmark
 import com.notflix.app.ui.components.NavTab
 import com.notflix.app.ui.components.NotflixButton
 import com.notflix.app.ui.components.NotflixTopBar
+import com.notflix.app.ui.components.isTvLayout
 import com.notflix.app.ui.screens.browse.BrowseScreen
 import com.notflix.app.ui.screens.collection.CollectionScreen
 import com.notflix.app.ui.screens.detail.DetailScreen
@@ -447,15 +448,21 @@ private fun ExitConfirmOverlay(onCancel: () -> Unit, onConfirm: () -> Unit) {
 
 @Composable
 private fun ExitGlowOverlay(onDone: () -> Unit) {
-    // Cikista splash isigini ters yonde akitip uygulamayi kapatir.
+    // Cikista splash isigini ters yonde akitip uygulamayi kapatir (4 saniye).
     val sweep = remember { Animatable(1f) }
     val bloom = remember { Animatable(1f) }
     val fade = remember { Animatable(1f) }
+    val glow = remember { Animatable(0.35f) }
     LaunchedEffect(Unit) {
-        launch { sweep.animateTo(0f, tween(durationMillis = 900, easing = LinearEasing)) }
-        launch { bloom.animateTo(0f, tween(durationMillis = 900, easing = LinearEasing)) }
-        delay(760)
-        fade.animateTo(0f, tween(durationMillis = 280))
+        launch { sweep.animateTo(0f, tween(durationMillis = 4_000, easing = LinearEasing)) }
+        launch { bloom.animateTo(0f, tween(durationMillis = 4_000, easing = LinearEasing)) }
+        launch {
+            glow.animateTo(1f, tween(durationMillis = 1_200, easing = LinearEasing))
+            delay(2_600)
+            glow.animateTo(0f, tween(durationMillis = 1_200, easing = LinearEasing))
+        }
+        delay(3_700)
+        fade.animateTo(0f, tween(durationMillis = 300))
         onDone()
     }
     Box(
@@ -467,10 +474,33 @@ private fun ExitGlowOverlay(onDone: () -> Unit) {
     ) {
         Box(contentAlignment = Alignment.Center) {
             NotflixBloom(
-                modifier = Modifier.width(220.dp).height(62.dp),
-                intensity = bloom.value
+                modifier = Modifier
+                    .width(240.dp)
+                    .height(70.dp),
+                intensity = bloom.value * glow.value
             )
-            NotflixWordmark(width = 152.dp, glow = true, sweep = sweep.value)
+            NotflixWordmark(width = 168.dp, glow = true, sweep = sweep.value)
+        }
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = if (isTvLayout()) 60.dp else 40.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "RENDIR MEDİA 2027",
+                color = Color.White.copy(alpha = 0.72f),
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Medium,
+                letterSpacing = 3.sp
+            )
+            Spacer(Modifier.height(6.dp))
+            Text(
+                text = "TÜM HAKLARI SAKLIDIR",
+                color = Color.White.copy(alpha = 0.38f),
+                fontSize = 9.5.sp,
+                letterSpacing = 2.sp
+            )
         }
     }
 }

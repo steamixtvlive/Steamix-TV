@@ -75,6 +75,7 @@ import com.notflix.app.data.WatchEntry
 import com.notflix.app.ui.components.ErrorState
 import com.notflix.app.ui.components.LoadingState
 import com.notflix.app.ui.components.MediaRow
+import com.notflix.app.ui.components.DeleteButton
 import com.notflix.app.ui.components.NotflixButton
 import com.notflix.app.ui.components.focusBringIntoView
 import com.notflix.app.ui.components.isTvLayout
@@ -391,11 +392,20 @@ private fun ResumeRow(
             horizontalArrangement = Arrangement.spacedBy(if (tv) 14.dp else 10.dp)
         ) {
             items(entries, key = { it.url + it.updatedAt }) { entry ->
-                ResumePreviewCard(
-                    entry = entry,
-                    onClick = { onResume(entry) },
-                    onRemove = { onRemove(entry) }
-                )
+                Column(modifier = Modifier.width(if (tv) 330.dp else 272.dp)) {
+                    ResumePreviewCard(
+                        entry = entry,
+                        onClick = { onResume(entry) }
+                    )
+                    // Kitaplik ve "Devam Et" ile ayni format: Sil dugmesi
+                    // kartin altinda, kartin disinda.
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        DeleteButton(onClick = { onRemove(entry) })
+                    }
+                }
             }
         }
     }
@@ -404,15 +414,14 @@ private fun ResumeRow(
 @Composable
 private fun ResumePreviewCard(
     entry: WatchEntry,
-    onClick: () -> Unit,
-    onRemove: (() -> Unit)? = null
+    onClick: () -> Unit
 ) {
     val tv = isTvLayout()
     var focused by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(12.dp)
     Row(
         modifier = Modifier
-            .width(if (tv) 330.dp else 272.dp)
+            .fillMaxWidth()
             .clip(shape)
             .background(if (focused) Color.White.copy(alpha = 0.08f) else NotflixColors.Card)
             .border(
@@ -496,25 +505,6 @@ private fun ResumePreviewCard(
                 fontSize = 10.sp,
                 fontWeight = FontWeight.Medium
             )
-        }
-        if (onRemove != null) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.Top)
-                    .size(if (tv) 30.dp else 26.dp)
-                    .clip(CircleShape)
-                    .background(Color.White.copy(alpha = 0.07f))
-                    .border(1.dp, Color.White.copy(alpha = 0.16f), CircleShape)
-                    .clickable { onRemove() },
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    Icons.Filled.Close,
-                    contentDescription = "Listeden kaldır",
-                    tint = NotflixColors.TextSecondary,
-                    modifier = Modifier.size(if (tv) 16.dp else 14.dp)
-                )
-            }
         }
     }
 }

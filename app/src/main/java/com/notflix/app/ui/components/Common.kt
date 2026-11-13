@@ -84,7 +84,10 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
@@ -101,11 +104,28 @@ data class NavTab(val id: String, val label: String)
 fun Modifier.focusBringIntoView(): Modifier {
     val requester = remember { BringIntoViewRequester() }
     val scope = rememberCoroutineScope()
+    val tv = isTvLayout()
+    val marginW = if (tv) 170f else 96f
+    val marginH = if (tv) 96f else 64f
+    var nodeSize by remember { mutableStateOf(IntSize.Zero) }
     return this
         .bringIntoViewRequester(requester)
-        .onFocusChanged {
-            if (it.isFocused) {
-                scope.launch { runCatching { requester.bringIntoView() } }
+        .onSizeChanged { nodeSize = it }
+        .onFocusChanged { state ->
+            if (state.isFocused) {
+                scope.launch {
+                    runCatching {
+                        // Odaklanan oge tamamen gorunsun; kenarda yari kesilmesin.
+                        requester.bringIntoView(
+                            Rect(
+                                0f,
+                                0f,
+                                nodeSize.width + marginW,
+                                nodeSize.height + marginH
+                            )
+                        )
+                    }
+                }
             }
         }
 }
