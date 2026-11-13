@@ -9,9 +9,12 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -70,7 +73,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.FocusRequester.Companion.Default
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -217,6 +222,19 @@ fun PlayerScreen(
     // Oynatma hizi (film/dizi).
     var playbackSpeed by remember { mutableStateOf(1f) }
     var speedNotice by remember { mutableStateOf<String?>(null) }
+    // 10 saniye ileri / geri.
+    val seekStepSeconds = 10
+    var hintText by remember { mutableStateOf<String?>(null) }
+    // Kullaniciya gosterilen kisa ipucu (orn. "Kontrolleri acmak icin OK tusuna basiniz").
+    fun showHint(text: String) {
+        hintText = text
+    }
+    LaunchedEffect(hintText) {
+        if (hintText != null) {
+            delay(2_600)
+            hintText = null
+        }
+    }
     var rootBoxFocused by remember { mutableStateOf(false) }
     var posterUrl by remember { mutableStateOf("") }
     var clock by remember { mutableLongStateOf(System.currentTimeMillis()) }
@@ -229,6 +247,15 @@ fun PlayerScreen(
 
     val focusRequester = remember { FocusRequester() }
     val controlsFocus = remember { FocusRequester() }
+    val seekbarFocus = remember { FocusRequester() }
+    val previousControlFocus = remember { FocusRequester() }
+    val nextControlFocus = remember { FocusRequester() }
+    val rewindControlFocus = remember { FocusRequester() }
+    val forwardControlFocus = remember { FocusRequester() }
+    val volumeControlFocus = remember { FocusRequester() }
+    val speedControlFocus = remember { FocusRequester() }
+    val qualityControlFocus = remember { FocusRequester() }
+    val aspectControlFocus = remember { FocusRequester() }
     val panelFocus = remember { FocusRequester() }
     val view = LocalView.current
     val activity = remember(context) { context.findActivity() }
@@ -581,6 +608,11 @@ fun PlayerScreen(
         positionMs = target
     }
 
+    fun seekWithStep(direction: Int) {
+        seekBy(seekStepSeconds * 1_000L * direction)
+        hintText = "${if (direction < 0) "−" else "+"}${seekStepSeconds} sn"
+    }
+
     fun zap(delta: Int) {
         if (!isLive || channels.size < 2) return
         index = (index + delta + channels.size) % channels.size
@@ -717,14 +749,6 @@ fun PlayerScreen(
                         }
                     }
                     // Medya tuslari: hizli sarma / geri sarma (kumanda ve klavye)
-                    android.view.KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> {
-                        seekBy(10_000)
-                        true
-                    }
-                    android.view.KeyEvent.KEYCODE_MEDIA_REWIND -> {
-                        seekBy(-10_000)
-                        true
-                    }
                     android.view.KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
                     android.view.KeyEvent.KEYCODE_MEDIA_PLAY -> {
                         togglePlay()
@@ -835,11 +859,49 @@ fun PlayerScreen(
                 if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
                 if (panelOpen || qualityOpen) return@onKeyEvent false
                 if (errorText != null) return@onKeyEvent false
+                if (!isLive && controlsVisible) {
+                    when (event.key) {
+                        Key.DirectionRight -> {
+                            val moved = focusManager.moveFocus(FocusDirection.Right)
+                            if (!moved) speedControlFocus.requestFocus()
+                            return@onKeyEvent true
+                        }
+                        Key.DirectionLeft -> {
+                            val moved = focusManager.moveFocus(FocusDirection.Left)
+                            if (!moved) controlsFocus.requestFocus()
+                            return@onKeyEvent true
+                        }
+                        Key.DirectionDown -> {
+                            val moved = focusManager.moveFocus(FocusDirection.Down)
+                            if (!moved) aspectControlFocus.requestFocus()
+                            return@onKeyEvent true
+                        }
+                        Key.DirectionUp -> {
+                            val moved = focusManager.moveFocus(FocusDirection.Up)
+                            if (!moved) controlsFocus.requestFocus()
+                            return@onKeyEvent true
+                        }
+                        Key.DirectionCenter, Key.Enter -> return@onKeyEvent false
+                        else -> Unit
+                    }
+                }
+                if (!isLive) {
+                    when (event.nativeKeyEvent.keyCode) {
+                        android.view.KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> {
+                            seekWithStep(1)
+                            return@onKeyEvent true
+                        }
+                        android.view.KeyEvent.KEYCODE_MEDIA_REWIND -> {
+                            seekWithStep(-1)
+                            return@onKeyEvent true
+                        }
+                    }
+                }
                 // Ozel kumanda tuslariyla kanal gecisi (kanal yukarı/asagi,
                 // medya next/previous) — kumandasinda ozel tus varsa calisir.
                 val native = event.nativeKeyEvent
                 if (isLive && channels.size > 1) {
-                    when (native.keyCode) {
+                    val handledChannelKey = when (native.keyCode) {
                         android.view.KeyEvent.KEYCODE_CHANNEL_UP -> {
                             zap(1)
                             true
@@ -856,35 +918,45 @@ fun PlayerScreen(
                             zap(-1)
                             true
                         }
+                        else -> false
                     }
+                    if (handledChannelKey == true) return@onKeyEvent true
                 }
                 // Film/dizide kontroller acikken odak ana kutudaysa ok tuslari
                 // kontrol barindaki dugmelere gecsin (yutulmasin).
                 if (!isLive && controlsVisible && rootBoxFocused) {
                     when (event.key) {
-                        Key.DirectionDown, Key.DirectionRight -> {
-                            val moved = runCatching {
-                                focusManager.moveFocus(FocusDirection.Down)
-                            }.isSuccess
-                            if (!moved) runCatching { controlsFocus.requestFocus() }
+                        Key.DirectionRight -> {
+                            focusManager.moveFocus(FocusDirection.Right)
                             return@onKeyEvent true
                         }
-                        Key.DirectionUp, Key.DirectionLeft -> {
-                            focusManager.moveFocus(FocusDirection.Up)
+                        Key.DirectionLeft -> {
+                            focusManager.moveFocus(FocusDirection.Left)
                             return@onKeyEvent true
                         }
                         Key.DirectionCenter, Key.Enter, Key.Spacebar -> {
-                            runCatching { controlsFocus.requestFocus() }
+                            if (rootBoxFocused) {
+                                controlsFocus.requestFocus()
+                                togglePlay()
+                            } else togglePlay()
                             return@onKeyEvent true
                         }
+                        else -> Unit
                     }
                 }
                 when (event.key) {
-                    // Tam ekran modu (kontroller gizliyken): canlida yukarı/asagi
-                    // kanal degistirir, film/dizide kontrolleri geri getirir.
+                    // Tam ekran modu (kontroller gizliyken):
+                    //  - Canli TV'de yukarı/asagi kanal degistirir.
+                    //  - Film/dizide yön tuslari kontrolleri acar.
                     Key.DirectionUp -> {
                         if (!controlsVisible) {
-                            if (isLive && channels.size > 1) zap(1) else controlsVisible = true
+                            if (isLive && channels.size > 1) {
+                                zap(1)
+                            } else {
+                                controlsVisible = true
+                                runCatching { focusRequester.requestFocus() }
+                                runCatching { focusManager.moveFocus(FocusDirection.Down) }
+                            }
                             true
                         } else {
                             false
@@ -892,24 +964,39 @@ fun PlayerScreen(
                     }
                     Key.DirectionDown -> {
                         if (!controlsVisible) {
-                            if (isLive && channels.size > 1) zap(-1) else controlsVisible = true
+                            if (isLive && channels.size > 1) {
+                                zap(-1)
+                            } else {
+                                controlsVisible = true
+                                runCatching { focusRequester.requestFocus() }
+                                runCatching { focusManager.moveFocus(FocusDirection.Down) }
+                            }
                             true
                         } else {
                             false
                         }
                     }
                     Key.DirectionRight -> {
-                        if (!controlsVisible && isLive && channels.size > 1) {
+                        if (controlsVisible && !isLive && rootBoxFocused) {
+                            runCatching { controlsFocus.requestFocus() }
+                            true
+                        } else if (!controlsVisible && isLive && channels.size > 1) {
                             openChannelPanel()
                             true
-                        } else {
-                            false
-                        }
+                        } else false
                     }
-                    // Kontroller gizliyken OK/merkez tusu kontrolleri geri getirir.
+                    // Canli TV'de kontroller OK (merkez) tusu ile acilir;
+                    // film/dizide OK oynat/durdur yapar.
                     Key.DirectionCenter, Key.Enter, Key.Spacebar -> {
                         if (!controlsVisible) {
-                            controlsVisible = true
+                            if (isLive) {
+                                controlsVisible = true
+                                showHint("Kontrolleri açmak için OK tuşuna basınız")
+                                runCatching { focusRequester.requestFocus() }
+                                runCatching { focusManager.moveFocus(FocusDirection.Down) }
+                            } else {
+                                togglePlay()
+                            }
                             true
                         } else {
                             false
@@ -918,6 +1005,8 @@ fun PlayerScreen(
                     Key.DirectionLeft -> {
                         if (!controlsVisible) {
                             controlsVisible = true
+                            runCatching { focusRequester.requestFocus() }
+                            runCatching { focusManager.moveFocus(FocusDirection.Down) }
                             true
                         } else {
                             false
@@ -1014,7 +1103,9 @@ fun PlayerScreen(
                         Spacer(modifier = Modifier.height(if (isTv) 12.dp else 8.dp))
                     } else {
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .focusGroup(),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
@@ -1058,7 +1149,7 @@ fun PlayerScreen(
                     }
 
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().focusGroup(),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         if (buffering) {
@@ -1079,7 +1170,13 @@ fun PlayerScreen(
                                 contentDescription = if (isPlaying) "Duraklat" else "Oynat",
                                 size = if (isTv) 46.dp else 40.dp,
                                 filled = true,
-                                modifier = Modifier.focusRequester(controlsFocus),
+                                modifier = Modifier
+                                    .focusRequester(controlsFocus)
+                                    .focusProperties {
+                                        left = if (isLive) previousControlFocus else Default
+                                        right = if (isLive) nextControlFocus else rewindControlFocus
+                                        down = if (isLive) Default else rewindControlFocus
+                                    },
                                 onClick = { togglePlay() }
                             )
                         }
@@ -1091,6 +1188,7 @@ fun PlayerScreen(
                                     contentDescription = "Önceki kanal",
                                     size = if (isTv) 40.dp else 34.dp,
                                     filled = false,
+                                    modifier = Modifier.focusRequester(previousControlFocus),
                                     onClick = { zap(-1) }
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
@@ -1099,24 +1197,38 @@ fun PlayerScreen(
                                     contentDescription = "Sonraki kanal",
                                     size = if (isTv) 40.dp else 34.dp,
                                     filled = false,
+                                    modifier = Modifier.focusRequester(nextControlFocus),
                                     onClick = { zap(1) }
                                 )
                             }
                         } else {
                             SeekCircle(
-                                label = "−10",
+                                label = "−$seekStepSeconds",
                                 size = if (isTv) 44.dp else 38.dp,
-                                onClick = { seekBy(-10_000) }
+                                modifier = Modifier
+                                    .focusRequester(rewindControlFocus)
+                                    .focusProperties { left = controlsFocus; right = forwardControlFocus },
+                                onClick = { seekWithStep(-1) }
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             SeekCircle(
-                                label = "+10",
+                                label = "+$seekStepSeconds",
                                 size = if (isTv) 44.dp else 38.dp,
-                                onClick = { seekBy(10_000) }
+                                modifier = Modifier
+                                    .focusRequester(forwardControlFocus)
+                                    .focusProperties {
+                                        left = rewindControlFocus
+                                        right = volumeControlFocus
+                                    },
+                                onClick = { seekWithStep(1) }
                             )
                         }
                         Spacer(modifier = Modifier.width(if (isTv) 18.dp else 12.dp))
                         Row(
+                            modifier = Modifier.focusGroup().focusProperties {
+                                left = if (isLive) nextControlFocus else forwardControlFocus
+                                right = if (isLive) aspectControlFocus else speedControlFocus
+                            },
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             ControlCircle(
@@ -1125,6 +1237,12 @@ fun PlayerScreen(
                                 contentDescription = if (muted) "Sesi aç" else "Sesi kapat",
                                 size = if (isTv) 38.dp else 34.dp,
                                 filled = false,
+                                modifier = Modifier
+                                    .focusRequester(volumeControlFocus)
+                                    .focusProperties {
+                                        left = if (isLive) nextControlFocus else forwardControlFocus
+                                        right = speedControlFocus
+                                    },
                                 onClick = { toggleMute() }
                             )
                             Slider(
@@ -1149,6 +1267,12 @@ fun PlayerScreen(
                                 contentDescription = "Oynatma hızı",
                                 size = if (isTv) 38.dp else 34.dp,
                                 filled = false,
+                                modifier = Modifier
+                                    .focusRequester(speedControlFocus)
+                                    .focusProperties {
+                                        left = volumeControlFocus
+                                        right = qualityControlFocus
+                                    },
                                 onClick = {
                                     val next = when (playbackSpeed) {
                                         1f -> 1.25f
@@ -1183,6 +1307,14 @@ fun PlayerScreen(
                                 contentDescription = "Kalite (otomatik)",
                                 size = if (isTv) 38.dp else 34.dp,
                                 filled = false,
+                                modifier = Modifier
+                                    .focusRequester(qualityControlFocus)
+                                    .focusProperties {
+                                        left = speedControlFocus
+                                        right = aspectControlFocus
+                                        up = controlsFocus
+                                        down = aspectControlFocus
+                                    },
                                 onClick = { qualityOpen = true }
                             )
                             Spacer(modifier = Modifier.width(6.dp))
@@ -1212,6 +1344,13 @@ fun PlayerScreen(
                             contentDescription = "En-boy oranı",
                             size = if (isTv) 38.dp else 34.dp,
                             filled = false,
+                            modifier = Modifier
+                                .focusRequester(aspectControlFocus)
+                                .focusProperties {
+                                    left = if (isLive) volumeControlFocus else qualityControlFocus
+                                    right = Default
+                                    up = if (isLive) controlsFocus else speedControlFocus
+                                },
                             onClick = { cycleAspect() }
                         )
                     }
@@ -1220,6 +1359,31 @@ fun PlayerScreen(
         }
 
         // Canli yayinda cozunurluk bilgisi kontrol barinin saginda gosterilir.
+
+        // Kullanici ipucu (animasyonlu).
+        AnimatedVisibility(
+            visible = hintText != null,
+            enter = fadeIn() + scaleIn(initialScale = 0.92f),
+            exit = fadeOut() + scaleOut(targetScale = 0.96f),
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = if (isTv) 120.dp else 96.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(Color.Black.copy(alpha = 0.82f))
+                    .border(1.dp, NotflixColors.Accent.copy(alpha = 0.55f), RoundedCornerShape(50))
+                    .padding(horizontal = 18.dp, vertical = 9.dp)
+            ) {
+                Text(
+                    text = hintText.orEmpty(),
+                    color = Color.White,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+        }
 
         aspectNotice?.let { label ->
             Box(
@@ -1944,10 +2108,15 @@ private fun ControlCircle(
 }
 
 @Composable
-private fun SeekCircle(label: String, size: Dp = 52.dp, onClick: () -> Unit) {
+private fun SeekCircle(
+    label: String,
+    size: Dp = 52.dp,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
     var focused by remember { mutableStateOf(false) }
     Box(
-        modifier = Modifier
+        modifier = modifier
             .size(size)
             .clip(CircleShape)
             .background(

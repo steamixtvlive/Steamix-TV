@@ -49,6 +49,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.Key
@@ -181,39 +182,36 @@ private fun HomeContent(
     val app = context.applicationContext as NotflixApplication
     var heroFocused by remember { mutableStateOf(false) }
     val heroPlayFocus = remember { FocusRequester() }
+    val heroDetailFocus = remember { FocusRequester() }
     val view = LocalView.current
     val latestHeroReady by rememberUpdatedState(hero.isNotEmpty())
 
     // Uygulama acilisinda odak hero slaytina gelir; alt satirlarda baslamaz.
     LaunchedEffect(Unit) {
         if (autoFocusHero && hero.isNotEmpty()) {
+            listState.requestScrollToItem(0)
             delay(320)
             runCatching { heroPlayFocus.requestFocus() }
             onAutoFocusDone()
         }
     }
 
-    // Listede hicbir oge secili degilken (ornegin detaydan donuste) ilk tus
-    // sayfa basindaysa hero'ya, degilse dokunmadan normal akisa birakilir.
+    // 1.0.3-era hero navigation: when the list is at top and focus escaped,
+    // reclaim focus on the hero instead of letting DPAD Up escape to app nav.
     DisposableEffect(Unit) {
         val handler: (Int) -> Boolean = { keyCode ->
-            if (latestHeroReady && !view.hasFocus() &&
-                listState.firstVisibleItemIndex == 0 &&
-                listState.firstVisibleItemScrollOffset == 0
-            ) {
-                when (keyCode) {
-                    android.view.KeyEvent.KEYCODE_DPAD_UP,
-                    android.view.KeyEvent.KEYCODE_DPAD_DOWN,
-                    android.view.KeyEvent.KEYCODE_DPAD_LEFT,
-                    android.view.KeyEvent.KEYCODE_DPAD_RIGHT,
-                    android.view.KeyEvent.KEYCODE_DPAD_CENTER,
-                    android.view.KeyEvent.KEYCODE_ENTER,
-                    android.view.KeyEvent.KEYCODE_NUMPAD_ENTER -> runCatching {
-                        heroPlayFocus.requestFocus()
-                    }.isSuccess
-                    else -> false
-                }
-            } else false
+                if (keyCode == android.view.KeyEvent.KEYCODE_DPAD_UP &&
+                    latestHeroReady && !heroFocused &&
+                    listState.firstVisibleItemIndex == 0 &&
+                    listState.firstVisibleItemScrollOffset == 0
+                ) {
+                    val moved = runCatching { heroPlayFocus.requestFocus() }.isSuccess
+                    if (moved) scope.launch { listState.animateScrollToItem(0) }
+                    moved
+                } else if (keyCode == android.view.KeyEvent.KEYCODE_DPAD_UP && heroFocused) {
+                    scope.launch { listState.animateScrollToItem(0) }
+                    true
+                } else false
         }
         PlayerKeyBus.register(handler)
         onDispose { PlayerKeyBus.unregister(handler) }
@@ -262,7 +260,7 @@ private fun HomeContent(
             BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
                 val tv = isTvLayout()
                 // Hero tam gorunecek kadar kisa tutulur (yukari/alt kesilmesin).
-                val heroHeight = if (tv) 440.dp
+                val heroHeight = if (tv) 520.dp
                 else (maxWidth * 0.78f).coerceIn(300.dp, 420.dp)
                 Box(
                     modifier = Modifier
@@ -278,7 +276,8 @@ private fun HomeContent(
                             onPlay = { onPlay(hero[page].url, hero[page].title) },
                             onDetail = { onOpenDetail(hero[page].url, hero[page].title) },
                             onHeroFocus = { heroFocused = it },
-                            playFocus = if (page == pagerState.currentPage) heroPlayFocus else null
+                            playFocus = if (page == pagerState.currentPage) heroPlayFocus else null,
+                            detailFocus = if (page == pagerState.currentPage) heroDetailFocus else null
                         )
                     }
                     if (hero.size > 1) {
@@ -513,7 +512,8 @@ private fun HeroPanel(
     onPlay: () -> Unit,
     onDetail: () -> Unit,
     onHeroFocus: (Boolean) -> Unit,
-    playFocus: FocusRequester? = null
+    playFocus: FocusRequester? = null,
+    detailFocus: FocusRequester? = null
 ) {
     val tv = isTvLayout()
     val context = LocalContext.current
@@ -679,13 +679,17 @@ private fun HeroPanel(
                     onClick = onPlay,
                     modifier = Modifier
                         .then(if (playFocus != null) Modifier.focusRequester(playFocus) else Modifier)
+                        .focusBringIntoView()
                         .onFocusChanged { onHeroFocus(it.hasFocus) }
                 )
                 NotflixButton(
                     text = "Detaylar",
                     primary = false,
                     onClick = onDetail,
-                    modifier = Modifier.onFocusChanged { onHeroFocus(it.hasFocus) }
+                    modifier = Modifier
+                        .then(if (detailFocus != null) Modifier.focusRequester(detailFocus) else Modifier)
+                        .focusBringIntoView()
+                        .onFocusChanged { onHeroFocus(it.hasFocus) }
                 )
             }
         }

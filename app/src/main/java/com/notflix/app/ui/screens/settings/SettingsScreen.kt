@@ -5,6 +5,7 @@ import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -30,15 +31,20 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.key
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -75,6 +81,7 @@ fun SettingsScreen(
     var liveRefreshBusy by remember { mutableStateOf(false) }
     var cacheBusy by remember { mutableStateOf(false) }
     var updateBusy by remember { mutableStateOf(false) }
+    var updateButtonFocus by remember { mutableStateOf<FocusRequester?>(null) }
 
     Column(modifier = Modifier.fillMaxSize()) {
         ScreenTitleBar(
@@ -92,44 +99,6 @@ fun SettingsScreen(
             modifier = Modifier.fillMaxSize(),
             contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 36.dp)
         ) {
-            message?.let { text ->
-                item(key = "message") {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = screenPadding(), vertical = 7.dp)
-                            .clip(RoundedCornerShape(9.dp))
-                            .background(NotflixColors.Accent.copy(alpha = 0.12f))
-                            .border(
-                                1.dp,
-                                NotflixColors.Accent.copy(alpha = 0.35f),
-                                RoundedCornerShape(9.dp)
-                            )
-                            .padding(horizontal = 14.dp, vertical = 10.dp)
-                    ) {
-                        Column {
-                            Text(
-                                text = text,
-                                color = NotflixColors.TextPrimary,
-                                fontSize = 12.sp,
-                                lineHeight = 17.sp
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = "Kapat",
-                                color = NotflixColors.AccentSoft,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(5.dp))
-                                    .clickable { message = null }
-                                    .padding(horizontal = 6.dp, vertical = 3.dp)
-                            )
-                        }
-                    }
-                }
-            }
-
             item(key = "play-head") { SectionHeader("Oynatma") }
             item(key = "play-card") {
                 SettingsCard {
@@ -211,7 +180,7 @@ fun SettingsScreen(
                             }
                         }
                     )
-ActionRow(
+                    ActionRow(
                         title = "Tanıtımı yeniden izle",
                         subtitle = "Baştan oynar.",
                         onClick = onReplayIntro
@@ -220,33 +189,38 @@ ActionRow(
             }
 
             item(key = "dev-head") { SectionHeader("Geliştirici RENDIR MEDİA") }
-            item(key = "dev-card") {
-                DeveloperCard()
-            }
+            item(key = "dev-card") { DeveloperCard() }
 
             item(key = "update-head") { SectionHeader("Güncelleme") }
             item(key = "update-card") {
+                key("update-card-fixed-key") {
+                val requester = remember { FocusRequester() }
+                SideEffect { updateButtonFocus = requester }
                 UpdateCard(
                     busy = updateBusy,
                     versionName = BuildConfig.VERSION_NAME,
+                    message = message,
+                    buttonFocus = requester,
                     onCheck = {
                         if (!updateBusy) {
                             updateBusy = true
-                            message = null
                             scope.launch {
-                                message = when (val result = app.updates.checkLatest(BuildConfig.VERSION_CODE)) {
+                                val result = app.updates.checkLatest(BuildConfig.VERSION_CODE)
+                                message = when (result) {
                                     is UpdateResult.UpToDate -> "Uygulama güncel."
                                     is UpdateResult.Available -> "Yeni sürüm mevcut: ${result.info.versionName}."
                                     is UpdateResult.Failed -> "Güncelleme denetlenemedi."
                                     UpdateResult.NotConfigured -> "Güncelleme yapılandırılmamış."
                                 }
                                 updateBusy = false
+                                withFrameNanos { }
+                                runCatching { requester.requestFocus() }
                             }
                         }
                     }
                 )
+                }
             }
-
         }
     }
 }
@@ -255,6 +229,8 @@ ActionRow(
 private fun UpdateCard(
     busy: Boolean,
     versionName: String,
+    message: String?,
+    buttonFocus: FocusRequester,
     onCheck: () -> Unit
 ) {
     Column(
@@ -303,17 +279,46 @@ private fun UpdateCard(
                     fontSize = 11.sp
                 )
             }
+            Spacer(modifier = Modifier.width(10.dp))
+        UpdateCheckButton(busy = busy, buttonFocus = buttonFocus, onCheck = onCheck)
         }
-        Spacer(modifier = Modifier.height(14.dp))
+        Spacer(modifier = Modifier.height(8.dp))
+        if (message != null) {
+            Text(
+                text = message,
+                color = NotflixColors.TextSecondary,
+                fontSize = 10.5.sp,
+                lineHeight = 15.sp
+            )
+        } else {
+            Text(
+                text = "Yeni sürüm varsa kurulum ekranı açılır.",
+                color = NotflixColors.TextMuted,
+                fontSize = 10.5.sp,
+                lineHeight = 15.sp
+            )
+        }
+    }
+}
+
+@Composable
+private fun UpdateCheckButton(
+    busy: Boolean,
+    buttonFocus: FocusRequester,
+    onCheck: () -> Unit
+) {
         Row(
-            modifier = Modifier
-                .clip(RoundedCornerShape(10.dp))
-                .background(NotflixColors.Card)
-                .border(1.dp, NotflixColors.LineSoft, RoundedCornerShape(10.dp))
-                .clickable(enabled = !busy, onClick = onCheck)
-                .padding(horizontal = 14.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+        modifier = Modifier
+            .focusBringIntoView()
+            .focusRequester(buttonFocus)
+            .focusable()
+            .clip(RoundedCornerShape(10.dp))
+            .background(NotflixColors.Card)
+            .border(1.dp, NotflixColors.LineSoft, RoundedCornerShape(10.dp))
+            .clickable(enabled = !busy, onClick = onCheck)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
             if (busy) {
                 CircularProgressIndicator(
                     color = NotflixColors.AccentSoft,
@@ -342,14 +347,6 @@ private fun UpdateCard(
                     fontWeight = FontWeight.Medium
                 )
             }
-        }
-        Spacer(modifier = Modifier.height(9.dp))
-        Text(
-            text = "Yeni sürüm varsa uygulama yeniden başlatılınca kurulum ekranı açılır.",
-            color = NotflixColors.TextMuted,
-            fontSize = 10.5.sp,
-            lineHeight = 15.sp
-        )
     }
 }
 

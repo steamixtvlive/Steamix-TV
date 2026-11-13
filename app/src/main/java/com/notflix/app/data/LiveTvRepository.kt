@@ -95,10 +95,8 @@ class LiveTvRepository(private val context: Context) {
             )
         }
         val preferred = result.filterNot { normalize(it.name).contains("kurdi") }
-        // Cekmeyen (olmayan) kanallar listeden cikarilir: calisan bir kaynagi
-        // olsa bile gec acilan bu kanallar kullaniciyi bekletiyor, bu yuzden
-        // tercih edilen kaynak (canli_fallbacks.json) degistirilmiyor ve
-        // o kanallar listede gosterilmiyor.
+        // Known slow/unavailable entries remain governed by the checked-in
+        // dead-channel list; the catalog remains the original 246-channel set.
         val dead = loadDeadChannels()
         val fixed = preferred.filterNot { dead.contains(it.name) }
         return fixed.sortedWith(

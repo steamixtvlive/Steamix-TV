@@ -24,7 +24,6 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -50,6 +49,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -224,8 +225,6 @@ private fun DetailContent(
 ) {
     val context = LocalContext.current
     val app = context.applicationContext as NotflixApplication
-    val scope = androidx.compose.runtime.rememberCoroutineScope()
-
     val seasons = remember(detail.url) {
         detail.seasonNumbers.ifEmpty {
             detail.seasons.keys.sorted().ifEmpty { listOf(1) }
@@ -345,6 +344,15 @@ private fun DetailContent(
     }.orEmpty()
 
     val detailScroll = rememberScrollState()
+    val scope = rememberCoroutineScope()
+    LaunchedEffect(detail.url) {
+        detailScroll.scrollTo(0)
+    }
+    LaunchedEffect(playFocused, libraryFocused) {
+        if (playFocused || libraryFocused) {
+            detailScroll.scrollTo(0)
+        }
+    }
     // Fragman tam ekran modu: sayfa icerigi gizlenir, video ekrani kaplar.
     var trailerFullscreen by remember(detail.url) { mutableStateOf(false) }
     Column(
@@ -357,7 +365,9 @@ private fun DetailContent(
                 when (event.key) {
                     // Asagi tusu bolumler arasinda gecer; odak gecince sayfa
                     // otomatik kayar.
-                    Key.DirectionDown -> moveZone(1)
+                    Key.DirectionDown -> {
+                        if (zone == DetailZone.Play || zoneFocused == DetailZone.Play) false else moveZone(1)
+                    }
                     Key.DirectionRight -> {
                         if (!libraryFocused && zone == DetailZone.Play) {
                             runCatching { libraryFocus.requestFocus() }.isSuccess
@@ -375,8 +385,8 @@ private fun DetailContent(
                     // Yukarida once sayfa kaydirilir (en ustte degilse),
                     // en ustteyken bolum geri gider.
                     Key.DirectionUp -> {
-                        if (zone == DetailZone.Play && detailScroll.value > 8f) {
-                            scope.launch { detailScroll.animateScrollBy(-420f) }
+                        if ((zone == DetailZone.Play || zoneFocused == DetailZone.Play) && detailScroll.value > 8f) {
+                            scope.launch { detailScroll.animateScrollTo(0) }
                             true
                         } else {
                             moveZone(-1)
@@ -392,11 +402,20 @@ private fun DetailContent(
             libraryFocus = libraryFocus,
             onPlayFocusChanged = { focused ->
                 playFocused = focused
-                if (focused) { zone = DetailZone.Play; zoneFocused = DetailZone.Play; libraryFocused = false }
+                if (focused) {
+                    zone = DetailZone.Play
+                    zoneFocused = DetailZone.Play
+                    libraryFocused = false
+                    scope.launch { detailScroll.scrollTo(0) }
+                }
             },
             onLibraryFocusChanged = { focused ->
                 libraryFocused = focused
-                if (focused) { zone = DetailZone.Play; zoneFocused = DetailZone.Play }
+                if (focused) {
+                    zone = DetailZone.Play
+                    zoneFocused = DetailZone.Play
+                    scope.launch { detailScroll.scrollTo(0) }
+                }
             },
             actionLabel = actionLabel,
             progressLabel = progressLabel,

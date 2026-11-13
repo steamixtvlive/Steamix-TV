@@ -1,6 +1,6 @@
 {
-  "versionCode": 13,
-  "versionName": "1.0.9",
+  "versionCode": 14,
+  "versionName": "1.0.10",
   "apkUrl": "https://github.com/steamixtvlive/Steamix-TV/releases/latest/download/notflix.apk",
-  "notes": "Yavaş açılan kanallar listeden çıkarıldı, kumanda medya tuşları ve oynatma hızı eklendi, detay ekranında tam ekran fragman, emülatörde klavye gezinmesi ve ayarlar çökmesi düzeltildi. Sık güncellemeler gelmeye devam edecek."
+  "notes": "Ana sayfa hero görünürlüğü ve odak gezinmesi, film/dizi oynatıcı kumanda kontrolleri ve güncelleme denetleme odağı iyileştirildi. Sık güncellemeler gelmeye devam edecek."
 }
