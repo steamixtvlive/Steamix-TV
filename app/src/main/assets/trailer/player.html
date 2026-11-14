@@ -26,6 +26,7 @@ html.ytp-android-app, .ytp-android-app { display: none !important; }
 var __playing = false;
 var __player = null;
 var __redirected = false;
+var __playRequested = false;
 
 function slog(m) { try { Android.log(m); } catch (e) {} }
 
@@ -62,6 +63,7 @@ function restart() {
 function redirectToWatch() {
   if (__redirected) { return; }
   __redirected = true;
+  __playRequested = false;
   slog('redirecting to m.youtube.com/watch');
   window.location.href = 'https://m.youtube.com/watch?v=__VIDEO_ID__&autoplay=1&mute=1&playsinline=1&rel=0&loop=1&vq=medium';
 }
@@ -90,10 +92,14 @@ function onYouTubeIframeAPIReady() {
         onReady: function (e) {
           slog('player-ready');
           hideOverlays();
-          // Kalite zorlanmaz (setPlaybackQuality oynaticiyi bos birakiyordu);
-          // 360p istegi playerVars icinde veriliyor.
-          try { e.target.mute(); } catch (err) {}
+          // Sessize alma, YouTube'un ilk oynatma istegini kesebildigi icin
+          // yalniz uygulama sessiz istediyse uygula.
+          try {
+            if (window.__svMuted === true) e.target.mute();
+            else e.target.unMute();
+          } catch (err) {}
           if (window.__svPaused !== true) {
+            __playRequested = true;
             try { e.target.playVideo(); } catch (err) {}
           }
         },
@@ -102,6 +108,7 @@ function onYouTubeIframeAPIReady() {
           hideOverlays();
           if (e.data === 1) {
             __restartPending = false;
+            __playRequested = false;
             __playing = true;
             try { Android.notifyPlaying(); } catch (err) {}
           }
@@ -115,6 +122,7 @@ function onYouTubeIframeAPIReady() {
             setTimeout(function () {
               try {
                 if (__player && __player.getPlayerState() === 2 && window.__svPaused !== true) {
+                  __playRequested = true;
                   __player.playVideo();
                 }
               } catch (err) {}
@@ -123,6 +131,7 @@ function onYouTubeIframeAPIReady() {
         },
         onError: function (e) {
           slog('player-error:' + (e.data !== undefined ? e.data : '?'));
+          // Embed gercekten oynatilamazsa once mobil player'a fallback yap.
           redirectToWatch();
         }
       }
@@ -134,12 +143,16 @@ function onYouTubeIframeAPIReady() {
 }
 
 setTimeout(function () {
-  if (!__playing) { redirectToWatch(); }
-}, 6000);
+  // API hazir/oynatma talebi gonderilmis ama PLAYING callback'i gelmemisse
+  // watch fallback'e gec; normal video baslangicina 6 saniyede mudahale etme.
+  if (!__playing && !__playRequested) { redirectToWatch(); }
+}, 12000);
 
 setTimeout(function () {
-  if (!__playing) { try { Android.notifyPlayerError(); } catch (e) {} }
-}, 24000);
+  if (!__playing && !__redirected) {
+    redirectToWatch();
+  }
+}, 30000);
 </script>
 </body>
 </html>
