@@ -1,6 +1,6 @@
 {
-  "versionCode": 18,
-  "versionName": "1.0.14",
+  "versionCode": 19,
+  "versionName": "1.0.15",
   "apkUrl": "https://github.com/steamixtvlive/Steamix-TV/releases/latest/download/notflix.apk",
-  "notes": "Kapak görselleri artık telefonda da görünüyor: ana sayfa ve detay ekranında poster sağda duruyor, hero ekrana sığacak şekilde kısaltıldı. Bu sürümden sonra sık güncelleme gelmeyecek."
+  "notes": "Dizilerde sonraki bölüme otomatik geçiş artık her yerde çalışıyor: ana sayfadaki Devam Et sırasından, Devam Et sekmesinden ve detay ekranından oynatılan bölüm bitince 4 saniye sonra kendiliğinden sonraki bölüme geçiyor. Bu sürümden sonra sık güncelleme gelmeyecek."
 }

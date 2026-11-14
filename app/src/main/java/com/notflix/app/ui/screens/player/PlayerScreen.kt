@@ -153,6 +153,38 @@ fun PlayerScreen(
     val isLive = liveUrl != null
     val isTv = LocalConfiguration.current.smallestScreenWidthDp >= 600
 
+    // Sonraki bolum: detay ekranindan gelirse parametreden alinir; gelmezse
+    // ("Devam Et" satiri, Devam Et sekmesi) dizi bolumu adresinden bulunur.
+    // Boylece otomatik "sonraki bolume gecis" heryerde calisir.
+    var resolvedNextUrl by remember { mutableStateOf(nextEpisodeUrl) }
+    var resolvedNextTitle by remember { mutableStateOf(nextEpisodeTitle) }
+    var playbackEnded by remember { mutableStateOf(false) }
+    // Dizilerde bittiğinde sonraki bölüme otomatik geçiş (4 sn geri sayım).
+    var nextCountdown by remember(pageUrl) { mutableStateOf<Int?>(null) }
+    LaunchedEffect(pageUrl, nextEpisodeUrl) {
+        if (!nextEpisodeUrl.isNullOrBlank()) {
+            resolvedNextUrl = nextEpisodeUrl
+            resolvedNextTitle = nextEpisodeTitle
+            return@LaunchedEffect
+        }
+        resolvedNextUrl = null
+        resolvedNextTitle = null
+        val season = seasonFromUrl(pageUrl)
+        val number = episodeFromUrl(pageUrl)
+        if (season <= 0 || number <= 0) return@LaunchedEffect
+        val seriesUrl = pageUrl.substringBefore("/sezon-").substringBefore("?")
+        val next = runCatching { app.content.nextEpisode(seriesUrl, season, number) }.getOrNull()
+        if (next != null) {
+            resolvedNextUrl = next.url
+            resolvedNextTitle = "$title · ${next.season}. Sezon ${next.number}. Bölüm"
+            android.util.Log.d("NotflixNextEpisode", "sonraki bolum: ${next.url}")
+            // Video bittikten sonra bilgi gelirse geri sayimi hemen baslat.
+            if (playbackEnded) nextCountdown = 4
+        } else {
+            android.util.Log.d("NotflixNextEpisode", "sonraki bolum bulunamadi: $pageUrl")
+        }
+    }
+
     val initialChannels = remember(liveUrl) {
         if (!isLive) emptyList()
         else if (liveChannels.isNotEmpty() && liveIndex in liveChannels.indices) liveChannels
@@ -246,8 +278,6 @@ fun PlayerScreen(
         }
     }
     var rootBoxFocused by remember { mutableStateOf(false) }
-    // Dizilerde bittiğinde sonraki bölüme otomatik geçiş (4 sn geri sayım).
-    var nextCountdown by remember(pageUrl) { mutableStateOf<Int?>(null) }
     var posterUrl by remember { mutableStateOf("") }
     var clock by remember { mutableLongStateOf(System.currentTimeMillis()) }
     var startedAt by remember { mutableLongStateOf(System.currentTimeMillis()) }
@@ -357,8 +387,9 @@ fun PlayerScreen(
                 }
                 if (playbackState == Player.STATE_ENDED) {
                     controlsVisible = true
+                    playbackEnded = true
                     // Sonraki bolum varsa 4 sn sonra otomatik gec.
-                    if (!isLive && nextEpisodeUrl != null && nextCountdown == null) {
+                    if (!isLive && resolvedNextUrl != null && nextCountdown == null) {
                         nextCountdown = 4
                     }
                 }
@@ -527,8 +558,8 @@ fun PlayerScreen(
         val current = nextCountdown ?: return@LaunchedEffect
         if (current <= 0) {
             nextCountdown = null
-            val url = nextEpisodeUrl
-            val label = nextEpisodeTitle
+            val url = resolvedNextUrl
+            val label = resolvedNextTitle
             if (!url.isNullOrBlank()) {
                 onNextEpisode(url, label ?: title)
             }
@@ -634,7 +665,7 @@ fun PlayerScreen(
     fun togglePlay() {
         if (!isLive && player.playbackState == Player.STATE_ENDED) {
             // Bitti: once otomatik gecis sayaci varsa onu durdur.
-            if (nextEpisodeUrl != null && nextCountdown != null) {
+            if (resolvedNextUrl != null && nextCountdown != null) {
                 nextCountdown = null
                 return
             }
@@ -1449,7 +1480,7 @@ fun PlayerScreen(
                     )
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
-                        text = nextEpisodeTitle ?: "",
+                        text = resolvedNextTitle ?: "",
                         color = Color.White,
                         fontSize = if (isTv) 15.sp else 13.sp,
                         fontWeight = FontWeight.Medium,
@@ -1467,8 +1498,8 @@ fun PlayerScreen(
                         text = "Şimdi izle",
                         onClick = {
                             nextCountdown = null
-                            val url = nextEpisodeUrl
-                            val label = nextEpisodeTitle
+                            val url = resolvedNextUrl
+                            val label = resolvedNextTitle
                             if (!url.isNullOrBlank()) onNextEpisode(url, label ?: title)
                         }
                     )

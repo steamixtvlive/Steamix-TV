@@ -427,6 +427,33 @@ class FilmmoduRepository {
         parsed
     }
 
+    /**
+     * Dizide verilen bolumden sonraki bolumu bulur.
+     *
+     * "Devam Et" satiri, Devam Et sekmesi ve detay ekranindan oynatildiginda
+     * otomatik "sonraki bolume gecis" calissin diye kullanilir.
+     */
+    suspend fun nextEpisode(seriesUrl: String, season: Int, number: Int): Episode? =
+        withContext(Dispatchers.IO) {
+            if (seriesUrl.isBlank() || season <= 0 || number <= 0) return@withContext null
+            val detail = runCatching { detail(seriesUrl) }.getOrNull()
+            val seasons = (detail?.seasonNumbers?.takeIf { it.isNotEmpty() }
+                ?: detail?.seasons?.keys?.sorted()
+                ?: emptyList()).sorted()
+            val candidates = if (seasons.isEmpty()) listOf(season) else seasons
+            for (candidate in candidates.filter { it >= season }) {
+                var list = detail?.seasons?.get(candidate).orEmpty().sortedBy { it.number }
+                // Bolumler sayfada yoksa sezon sayfasindan ayrica cekilir.
+                if (list.none { candidate > season || it.number > number }) {
+                    val fetched = runCatching { episodes(seriesUrl, candidate) }.getOrDefault(emptyList())
+                    if (fetched.isNotEmpty()) list = fetched.sortedBy { it.number }
+                }
+                val next = list.firstOrNull { candidate > season || it.number > number }
+                if (next != null) return@withContext next
+            }
+            null
+        }
+
     suspend fun resolve(pageUrl: String): PlayInfo = withContext(Dispatchers.IO) {
         var effectivePage = pageUrl
         var doc = fetchDoc(effectivePage)
