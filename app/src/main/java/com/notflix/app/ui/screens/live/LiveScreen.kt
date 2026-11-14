@@ -131,7 +131,8 @@ fun LiveScreen(
         val present = channels.map { it.group }.distinct()
         val ordered = preferred.filter { it in present } +
             present.filter { it !in preferred }.sorted()
-        listOf("Tümü") + ordered
+        // "Tümü" her zaman en sonda.
+        ordered + listOf("Tümü")
     }
     val counts = remember(channels) {
         channels.groupingBy { it.group }.eachCount()
@@ -149,7 +150,7 @@ fun LiveScreen(
                 searchKey(channel.group).contains(needle))
         }
     }
-    // Favori kategorisi her zaman en basta gorunsun.
+    // Favori kategorisi en basta, "Tümü" en sonda gorunsun.
     val chipGroups = remember(groups, favoriteUrls) {
         val withFavorites = if (favoriteUrls.isEmpty()) groups else listOf("Favoriler") + groups
         withFavorites
@@ -277,7 +278,7 @@ fun LiveScreen(
                 contentPadding = PaddingValues(horizontal = screenPadding()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                itemsIndexed(chipGroups, key = { _, group -> group }) { index, group ->
+                itemsIndexed(chipGroups, key = { _, group -> group }) { _, group ->
                     val count = when (group) {
                         "Tümü" -> channels.size
                         "Favoriler" -> favoriteUrls.size
@@ -290,7 +291,12 @@ fun LiveScreen(
                             selectedGroup = group
                             onGroupChange(group)
                         },
-                        modifier = if (index == 0) Modifier.focusRequester(firstChipFocus) else Modifier
+                        // Odak secili kategoriye gider ("Tümü" en sonda olsa bile).
+                        modifier = if (group == selectedGroup) {
+                            Modifier.focusRequester(firstChipFocus)
+                        } else {
+                            Modifier
+                        }
                     )
                 }
             }

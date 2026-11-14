@@ -25,7 +25,7 @@ function redirectToWatch() {
   if (__redirected) { return; }
   __redirected = true;
   slog('redirecting to m.youtube.com/watch');
-  window.location.href = 'https://m.youtube.com/watch?v=__VIDEO_ID__&autoplay=1&mute=1&playsinline=1&rel=0&loop=1&vq=hd720';
+  window.location.href = 'https://m.youtube.com/watch?v=__VIDEO_ID__&autoplay=1&mute=1&playsinline=1&rel=0&loop=1&vq=large';
 }
 
 function onYouTubeIframeAPIReady() {
@@ -36,13 +36,12 @@ function onYouTubeIframeAPIReady() {
       playerVars: {
         autoplay: 1, controls: 0, loop: 1, playlist: '__VIDEO_ID__',
         modestbranding: 1, rel: 0, playsinline: 1, fs: 0, iv_load_policy: 3, disablekb: 1,
-        vq: 'hd720'
+        vq: 'large'
       },
       events: {
         onReady: function (e) {
           slog('player-ready');
-          try { e.target.setPlaybackQualityRange('hd720', 'hd720'); } catch (err) {}
-          try { e.target.setPlaybackQuality('hd720'); } catch (err) {}
+          try { e.target.setPlaybackQuality('large'); } catch (err) {}
           try { e.target.playVideo(); } catch (err) {}
         },
         onStateChange: function (e) {

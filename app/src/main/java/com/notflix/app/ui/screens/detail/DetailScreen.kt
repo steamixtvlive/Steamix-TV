@@ -24,6 +24,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -104,6 +105,8 @@ fun DetailScreen(
     url: String,
     onBack: () -> Unit,
     onPlay: (pageUrl: String, title: String) -> Unit,
+    onPlayEpisode: (pageUrl: String, title: String, nextUrl: String?, nextTitle: String?) -> Unit =
+        { pageUrl, title, _, _ -> onPlay(pageUrl, title) },
     onOpenDetail: (url: String, title: String) -> Unit,
     onPersonClick: (PersonCard) -> Unit = {}
 ) {
@@ -130,12 +133,12 @@ fun DetailScreen(
                 when (keyCode) {
                     android.view.KeyEvent.KEYCODE_DPAD_UP,
                     android.view.KeyEvent.KEYCODE_DPAD_DOWN,
-                    android.view.KeyEvent.KEYCODE_DPAD_LEFT,
-                    android.view.KeyEvent.KEYCODE_DPAD_RIGHT,
                     android.view.KeyEvent.KEYCODE_DPAD_CENTER,
                     android.view.KeyEvent.KEYCODE_ENTER,
                     android.view.KeyEvent.KEYCODE_NUMPAD_ENTER ->
                         runCatching { playFocus.requestFocus() }.isSuccess
+                    android.view.KeyEvent.KEYCODE_DPAD_LEFT,
+                    android.view.KeyEvent.KEYCODE_DPAD_RIGHT -> false
                     else -> false
                 }
             } else {
@@ -163,6 +166,7 @@ fun DetailScreen(
             else -> DetailContent(
                 detail = current,
                 onPlay = onPlay,
+                onPlayEpisode = onPlayEpisode,
                 onOpenDetail = onOpenDetail,
                 onPersonClick = onPersonClick,
                 playFocus = playFocus,
@@ -218,6 +222,7 @@ fun DetailScreen(
 private fun DetailContent(
     detail: MediaDetail,
     onPlay: (pageUrl: String, title: String) -> Unit,
+    onPlayEpisode: (pageUrl: String, title: String, nextUrl: String?, nextTitle: String?) -> Unit,
     onOpenDetail: (url: String, title: String) -> Unit,
     onPersonClick: (PersonCard) -> Unit,
     playFocus: FocusRequester,
@@ -363,11 +368,8 @@ private fun DetailContent(
             .onPreviewKeyEvent { event ->
                 if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                 when (event.key) {
-                    // Asagi tusu bolumler arasinda gecer; odak gecince sayfa
-                    // otomatik kayar.
-                    Key.DirectionDown -> {
-                        if (zone == DetailZone.Play || zoneFocused == DetailZone.Play) false else moveZone(1)
-                    }
+                    // 1.0.4 odak zonlari.
+                    Key.DirectionDown -> moveZone(1)
                     Key.DirectionRight -> {
                         if (!libraryFocused && zone == DetailZone.Play) {
                             runCatching { libraryFocus.requestFocus() }.isSuccess
@@ -385,8 +387,8 @@ private fun DetailContent(
                     // Yukarida once sayfa kaydirilir (en ustte degilse),
                     // en ustteyken bolum geri gider.
                     Key.DirectionUp -> {
-                        if ((zone == DetailZone.Play || zoneFocused == DetailZone.Play) && detailScroll.value > 8f) {
-                            scope.launch { detailScroll.animateScrollTo(0) }
+                        if (zone == DetailZone.Play && detailScroll.value > 8f) {
+                            scope.launch { detailScroll.animateScrollBy(-420f) }
                             true
                         } else {
                             moveZone(-1)
@@ -520,6 +522,9 @@ private fun DetailContent(
                         )
                     ) {
                         itemsIndexed(episodes, key = { _, episode -> episode.url }) { index, episode ->
+                            val nextAfter = episodes
+                                .filter { it.number > episode.number || it.season > episode.season }
+                                .minByOrNull { it.season * 10_000 + it.number }
                             EpisodeCard(
                                 episode = episode,
                                 poster = detail.poster,
@@ -531,9 +536,13 @@ private fun DetailContent(
                                     Modifier
                                 },
                                 onPlay = {
-                                    onPlay(
+                                    onPlayEpisode(
                                         episode.url,
-                                        "${detail.title} · ${episode.season}. Sezon ${episode.number}. Bölüm"
+                                        "${detail.title} · ${episode.season}. Sezon ${episode.number}. Bölüm",
+                                        nextAfter?.url,
+                                        nextAfter?.let {
+                                            "${detail.title} · ${it.season}. Sezon ${it.number}. Bölüm"
+                                        }
                                     )
                                 }
                             )
@@ -551,7 +560,7 @@ private fun DetailContent(
                 items = detail.related,
                 onItemClick = { card -> onOpenDetail(card.url, card.title) },
                 firstFocus = relatedFocus,
-                firstFocusChanged = { focused -> if (focused) { zone = DetailZone.Related; zoneFocused = DetailZone.Related } }
+            firstFocusChanged = { focused -> if (focused) { zone = DetailZone.Related; zoneFocused = DetailZone.Related } }
             )
         }
 
@@ -585,9 +594,12 @@ private fun DetailHero(
     var trailerSoundOn by remember(detail.url) { mutableStateOf(true) }
 
     LaunchedEffect(detail.url) {
-        trailerKeys = runCatching {
+        val cached = app.content.cachedTrailerKeys(detail.title, detail.year, detail.type)
+        if (cached.isNotEmpty()) trailerKeys = cached
+        val fetched = runCatching {
             app.content.trailerKeys(detail.title, detail.year, detail.type)
         }.getOrDefault(emptyList())
+        if (fetched.isNotEmpty()) trailerKeys = fetched
     }
 
     Box(

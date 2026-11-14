@@ -29,6 +29,7 @@
 
         <activity
             android:name=".MainActivity"
+            android:supportsPictureInPicture="true"
             android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenLayout|screenSize|smallestScreenSize|uiMode|density"
             android:exported="true"
     android:hardwareAccelerated="true"

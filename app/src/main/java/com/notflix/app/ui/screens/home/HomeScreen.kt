@@ -216,15 +216,24 @@ private fun HomeContent(
         modifier = Modifier
             .fillMaxSize()
             .onPreviewKeyEvent { event ->
-                // 1.0.4: yukari tusu once hero odagina ve hero slaydinin
-                // basina gider; hero zaten odakliysa nav'a normal gecer.
+                // Hero odagi: odak hero'dayken yukarı tusu nav'a gider ama
+                // hero alani tam gorunecek sekilde listenin basina doner
+                // (1.0.3 donemi davranisi).
                 if (event.type == KeyEventType.KeyDown &&
+                    event.key == Key.DirectionUp &&
+                    heroFocused &&
+                    hero.isNotEmpty()
+                ) {
+                    scope.launch { listState.animateScrollToItem(0) }
+                    false
+                } else if (event.type == KeyEventType.KeyDown &&
                     event.key == Key.DirectionUp &&
                     !heroFocused &&
                     listState.firstVisibleItemIndex == 0 &&
                     listState.firstVisibleItemScrollOffset == 0 &&
                     hero.isNotEmpty()
                 ) {
+                    // Odak kacmis ise (detaydan donus gibi) hero geri alinir.
                     val moved = runCatching { heroPlayFocus.requestFocus() }.isSuccess
                     if (moved) {
                         scope.launch { listState.animateScrollToItem(0) }

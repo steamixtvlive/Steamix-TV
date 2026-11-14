@@ -142,19 +142,11 @@ fun SplashScreen(onDone: () -> Unit) {
                     }
                     Spacer(modifier = Modifier.height(if (tv) 34.dp else 32.dp))
                     Text(
-                        text = "FİLM  •  DİZİ  •  CANLI TV",
+                        text = "İZLE, KEŞFET, YAŞA",
                         color = NotflixColors.TextSecondary,
                         fontSize = if (tv) 14.sp else 11.sp,
                         fontWeight = FontWeight.Medium,
                         letterSpacing = if (tv) 5.sp else 3.5.sp,
-                        textAlign = TextAlign.Center
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "İçerikler internetten çekilmez; hepsi NOTFLİX'e aittir",
-                        color = NotflixColors.TextMuted,
-                        fontSize = if (tv) 11.sp else 9.5.sp,
-                        letterSpacing = 0.3.sp,
                         textAlign = TextAlign.Center
                     )
                 }

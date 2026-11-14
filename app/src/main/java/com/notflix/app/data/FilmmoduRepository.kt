@@ -9,6 +9,7 @@ import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
+import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
@@ -48,9 +49,9 @@ class FilmmoduRepository {
         .build()
 
     private val tmdbClient = OkHttpClient.Builder()
-        .connectTimeout(8, TimeUnit.SECONDS)
-        .readTimeout(8, TimeUnit.SECONDS)
-        .callTimeout(10, TimeUnit.SECONDS)
+        .connectTimeout(4, TimeUnit.SECONDS)
+        .readTimeout(4, TimeUnit.SECONDS)
+        .callTimeout(5, TimeUnit.SECONDS)
         .build()
 
     private val fetchGate = Semaphore(12)
@@ -66,6 +67,7 @@ class FilmmoduRepository {
     private val seasonCache = TimedCache<Pair<String, List<Episode>>>(30 * 60_000L)
     private val audioCache = KeyedCache<PlayInfo>(96, 30 * 60_000L)
     private val trailerCache = KeyedCache<String>(300, 12 * 60 * 60_000L)
+    private val trailerInFlight = java.util.concurrent.ConcurrentHashMap<String, kotlinx.coroutines.Deferred<List<String>>>()
     private val pageCache = PageCache(PageCache.MAX_PAGES, 10 * 60_000L)
     private val suggestCache = SuggestCache()
     private val indexLock = Any()
@@ -490,15 +492,27 @@ class FilmmoduRepository {
             info.audios to info.subtitles
         }
 
+    fun cachedTrailerKeys(title: String, year: String?, type: MediaType): List<String> {
+        val clean = title.substringBefore(" · ").trim()
+        if (clean.isBlank()) return emptyList()
+        val cacheKey = "${type.name}|${clean.lowercase()}|${year.orEmpty()}"
+        return trailerCache.get(cacheKey)?.split(',')?.filter { it.isNotBlank() }.orEmpty()
+    }
+
     suspend fun trailerKeys(title: String, year: String?, type: MediaType): List<String> =
         withContext(Dispatchers.IO) {
             val clean = title.substringBefore(" · ").trim()
             if (clean.isBlank()) return@withContext emptyList()
             val cacheKey = "${type.name}|${clean.lowercase()}|${year.orEmpty()}"
             trailerCache.get(cacheKey)?.let { return@withContext it.split(',').filter { k -> k.isNotBlank() } }
-            val found = runCatching { lookupTrailers(clean, year, type) }.getOrDefault(emptyList())
-            trailerCache.put(cacheKey, found.joinToString(","))
-            found
+            trailerInFlight[cacheKey]?.let { return@withContext withTimeoutOrNull(6_000) { it.await() }.orEmpty() }
+            val job = kotlinx.coroutines.CoroutineScope(Dispatchers.IO).async {
+                runCatching { lookupTrailers(clean, year, type) }.getOrDefault(emptyList())
+                    .also { trailerCache.put(cacheKey, it.joinToString(",")) }
+            }
+            trailerInFlight[cacheKey] = job
+            try { withTimeoutOrNull(6_000) { job.await() }.orEmpty() }
+            finally { if (job.isCompleted) trailerInFlight.remove(cacheKey, job) }
         }
 
     suspend fun trailerKey(title: String, year: String?, type: MediaType): String? =
@@ -526,7 +540,7 @@ class FilmmoduRepository {
         }
         if (id == 0) return emptyList()
         val ordered = LinkedHashSet<String>()
-        for (lang in listOf("tr-TR", "en-US")) {
+        for (lang in listOf("tr-TR")) {
             val body = runCatching {
                 tmdbGet("https://api.themoviedb.org/3/$kind/$id/videos?api_key=$TMDB_KEY&language=$lang")
             }.getOrNull() ?: continue
@@ -549,11 +563,11 @@ class FilmmoduRepository {
             }
         }
         // Gömülemeyen videolar (152-4/153) oynaticida siyah ekran birakir; onlar elenir.
-        val playable = ordered.filter { isEmbeddable(it) }
+        val playable = ordered.toList()
         if (playable.isNotEmpty()) return playable.take(6)
         // TMDB sonucu yoksa YouTube aramasina dus.
         val searched = searchTrailerOnYoutube(title)
-        return (searched + ordered).filter { isEmbeddable(it) }.take(6)
+        return (searched + ordered).distinct().take(6)
     }
 
     /** YouTube Data API ile "<baslik> official trailer" aramasi. */
@@ -747,8 +761,10 @@ class FilmmoduRepository {
         val backdrop = doc.selectFirst("img[src*=/storage/tmdb/backdrops/]")
             ?.absUrl("src")?.takeIf { it.isNotBlank() }
             ?: poster
-        val description = ld?.optString("description")?.takeIf { it.isNotBlank() }
+        val baseDescription = ld?.optString("description")?.takeIf { it.isNotBlank() }
             ?: doc.selectFirst("meta[name=description]")?.attr("content").orEmpty()
+        // JSON-LD ozeti dizilerde cok kisadir; sayfadaki tam ozet paragrafini kullan.
+        val description = findSynopsis(doc, baseDescription).ifBlank { baseDescription }
         val date = ld?.optString("datePublished").orEmpty()
             .ifBlank { ld?.optString("startDate").orEmpty() }
         val year = YEAR.find(date)?.value ?: YEAR.find(doc.text())?.value
@@ -847,8 +863,26 @@ class FilmmoduRepository {
             .sortedWith(compareBy({ it.season }, { it.number }))
     }
 
-    private fun findJsonLd(doc: Document): JSONObject? {
-        for (script in doc.select("script[type=application/ld+json]")) {
+    /**
+     * Sayfadaki tam ozet paragrafini bulur.
+     * JSON-LD/meta ozeti bazen "..." ile kesilmis ya da cok kisa olabiliyor;
+     * ayni metni iceren en uzun paragrafi tercih ediyoruz.
+     */
+    private fun findSynopsis(doc: Document, base: String): String {
+        val key = base.trim().take(30)
+        if (key.length < 10) return ""
+        var best = ""
+        for (paragraph in doc.select("p")) {
+            val text = paragraph.text().trim()
+            if (text.length <= base.length) continue
+            if (text.contains(key, ignoreCase = true) && text.length > best.length) {
+                best = text
+            }
+        }
+        return best
+    }
+
+    private fun findJsonLd(doc: Document): JSONObject? {        for (script in doc.select("script[type=application/ld+json]")) {
             val raw = script.data()
             if (!raw.contains("\"Movie\"") && !raw.contains("\"TVSeries\"")) continue
             try {

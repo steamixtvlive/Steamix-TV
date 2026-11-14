@@ -37,11 +37,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.notflix.app.BuildConfig
+import com.notflix.app.MainActivity
 import com.notflix.app.NotflixApplication
 import com.notflix.app.data.LiveChannel
 import com.notflix.app.data.MediaType
@@ -92,7 +94,9 @@ private sealed interface Screen {
         val pageUrl: String,
         val title: String,
         val liveUrl: String?,
-        val liveIndex: Int = -1
+        val liveIndex: Int = -1,
+        val nextEpisodeUrl: String? = null,
+        val nextEpisodeTitle: String? = null
     ) : Screen
 }
 
@@ -225,12 +229,49 @@ fun AppRoot() {
                             onExit = { exitConfirm = true }
                         )
                     }
+                    // Oynatici ekrandayken uygulamadan ayrilinca PiP.
+                    val hostActivity = LocalContext.current as? MainActivity
+                    LaunchedEffect(current) {
+                        hostActivity?.setPlayerActive(current is Screen.Player)
+                    }
+                    // Gercek PiP durumu (sistem bildirimi). Kucuk ekran olcegi
+                    // kullanilmiyor: kucuk TV'lerde kontroller kayboluyordu.
+                    val pipActive = hostActivity?.pipActive?.value == true
                     Crossfade(
                         targetState = current,
                         animationSpec = tween(durationMillis = 220),
                         label = "screen"
                     ) { screen ->
                         when (screen) {
+                            is Screen.Player -> if (pipActive) {
+                                PlayerScreen(
+                                    pageUrl = screen.pageUrl,
+                                    title = screen.title,
+                                    liveUrl = screen.liveUrl,
+                                    liveChannels = liveChannels,
+                                    liveIndex = screen.liveIndex,
+                                    inPipMode = true,
+                                    onBack = { back() }
+                                )
+                            } else {
+                                PlayerScreen(
+                                    pageUrl = screen.pageUrl,
+                                    title = screen.title,
+                                    liveUrl = screen.liveUrl,
+                                    liveChannels = liveChannels,
+                                    liveIndex = screen.liveIndex,
+                                    nextEpisodeUrl = screen.nextEpisodeUrl,
+                                    nextEpisodeTitle = screen.nextEpisodeTitle,
+                                    onNextEpisode = { url, title ->
+                                        // Geri yigini buyutmeden ayni ekranda degis.
+                                        if (stack.isNotEmpty()) {
+                                            stack[stack.lastIndex] =
+                                                Screen.Player(url, title, null)
+                                        }
+                                    },
+                                    onBack = { back() }
+                                )
+                            }
                             is Screen.Home -> HomeScreen(
                                 onPlay = { url, title -> push(Screen.Player(url, title, null)) },
                                 onOpenDetail = { url, title -> push(Screen.Detail(url, title)) },
@@ -338,20 +379,15 @@ fun AppRoot() {
                             )
                             is Screen.Detail -> DetailScreen(
                                 url = screen.url,
-                                onBack = { back() },
+                                onBack = { openRoot(Screen.Home) },
                                 onPlay = { url, title -> push(Screen.Player(url, title, null)) },
+                                onPlayEpisode = { url, title, nextUrl, nextTitle ->
+                                    push(Screen.Player(url, title, null, -1, nextUrl, nextTitle))
+                                },
                                 onOpenDetail = { url, title -> push(Screen.Detail(url, title)) },
                                 onPersonClick = { person ->
                                     push(Screen.Collection(person.name, person.url))
                                 }
-                            )
-                            is Screen.Player -> PlayerScreen(
-                                pageUrl = screen.pageUrl,
-                                title = screen.title,
-                                liveUrl = screen.liveUrl,
-                                liveChannels = liveChannels,
-                                liveIndex = screen.liveIndex,
-                                onBack = { back() }
                             )
                         }
                     }

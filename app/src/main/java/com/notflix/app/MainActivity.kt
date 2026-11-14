@@ -1,6 +1,8 @@
 package com.notflix.app
 
 import android.content.pm.ActivityInfo
+import android.app.PictureInPictureParams
+import android.util.Rational
 import android.media.AudioManager
 import android.os.Build
 import android.os.Bundle
@@ -15,6 +17,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.runtime.State
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.core.view.WindowCompat
@@ -28,10 +32,36 @@ import com.notflix.app.ui.theme.NotflixTheme
 
 class MainActivity : ComponentActivity() {
 
+    private var activePlayer = false
+
+    // Gercek PiP durumu (pencere olceginden degil, sistem bildiriminden).
+    // Bu sayede kucuk ekranli TV'lerde kontroller yanlis likte kaybolmuyor.
+    private val _pipActive = mutableStateOf(false)
+    val pipActive: State<Boolean> get() = _pipActive
+
     private val audioManager: AudioManager by lazy {
         getSystemService(AUDIO_SERVICE) as AudioManager
     }
     private var lastAudibleVolume: Int = -1
+
+    fun setPlayerActive(active: Boolean) { activePlayer = active }
+
+    override fun onPictureInPictureModeChanged(
+        inPictureInPictureMode: Boolean,
+        newConfig: android.content.res.Configuration
+    ) {
+        super.onPictureInPictureModeChanged(inPictureInPictureMode, newConfig)
+        _pipActive.value = inPictureInPictureMode
+    }
+
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        if (activePlayer && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !isInPictureInPictureMode) {
+            runCatching {
+                enterPictureInPictureMode(PictureInPictureParams.Builder().setAspectRatio(Rational(16, 9)).build())
+            }
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -83,9 +113,16 @@ class MainActivity : ComponentActivity() {
             return true
         }
         // Gamepad A activates the focused item like D-pad center, B acts as Back.
+        // Bazi Google TV kumandalari ve set-top-box kumandalari yon tuslerini
+        // SYSTEM_NAVIGATION_* koduyla gonderir; Compose bu kodlari tanimaz.
+        // Onleri DPAD_*'a cevirerek kumanda her cihazda ayni calisir.
         val mapped = when (keyCode) {
             KeyEvent.KEYCODE_BUTTON_A -> KeyEvent.KEYCODE_DPAD_CENTER
             KeyEvent.KEYCODE_BUTTON_B -> KeyEvent.KEYCODE_BACK
+            KeyEvent.KEYCODE_SYSTEM_NAVIGATION_UP -> KeyEvent.KEYCODE_DPAD_UP
+            KeyEvent.KEYCODE_SYSTEM_NAVIGATION_DOWN -> KeyEvent.KEYCODE_DPAD_DOWN
+            KeyEvent.KEYCODE_SYSTEM_NAVIGATION_LEFT -> KeyEvent.KEYCODE_DPAD_LEFT
+            KeyEvent.KEYCODE_SYSTEM_NAVIGATION_RIGHT -> KeyEvent.KEYCODE_DPAD_RIGHT
             else -> 0
         }
         if (mapped != 0) {

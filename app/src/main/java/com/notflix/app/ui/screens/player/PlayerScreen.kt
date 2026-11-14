@@ -40,6 +40,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AspectRatio
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.FullscreenExit
 import androidx.compose.material.icons.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.filled.LiveTv
 import androidx.compose.material.icons.filled.Pause
@@ -90,8 +91,10 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -114,6 +117,7 @@ import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import coil.compose.AsyncImage
 import com.notflix.app.NotflixApplication
+import com.notflix.app.MainActivity
 import com.notflix.app.data.LiveChannel
 import com.notflix.app.data.MediaType
 import com.notflix.app.data.PlayInfo
@@ -123,6 +127,7 @@ import com.notflix.app.ui.brand.NotflixWordmark
 import com.notflix.app.ui.components.FilterChip
 import com.notflix.app.ui.components.NotflixButton
 import com.notflix.app.ui.components.VolumeHud
+import com.notflix.app.ui.components.isTvLayout
 import com.notflix.app.ui.theme.NotflixColors
 import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
@@ -136,9 +141,14 @@ fun PlayerScreen(
     liveUrl: String?,
     liveChannels: List<LiveChannel> = emptyList(),
     liveIndex: Int = -1,
+    nextEpisodeUrl: String? = null,
+    nextEpisodeTitle: String? = null,
+    onNextEpisode: (String, String) -> Unit = { _, _ -> },
+    inPipMode: Boolean = false,
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
+    val pipAspectFocus = remember { FocusRequester() }
     val app = context.applicationContext as NotflixApplication
     val isLive = liveUrl != null
     val isTv = LocalConfiguration.current.smallestScreenWidthDp >= 600
@@ -236,6 +246,8 @@ fun PlayerScreen(
         }
     }
     var rootBoxFocused by remember { mutableStateOf(false) }
+    // Dizilerde bittiğinde sonraki bölüme otomatik geçiş (4 sn geri sayım).
+    var nextCountdown by remember(pageUrl) { mutableStateOf<Int?>(null) }
     var posterUrl by remember { mutableStateOf("") }
     var clock by remember { mutableLongStateOf(System.currentTimeMillis()) }
     var startedAt by remember { mutableLongStateOf(System.currentTimeMillis()) }
@@ -259,6 +271,12 @@ fun PlayerScreen(
     val panelFocus = remember { FocusRequester() }
     val view = LocalView.current
     val activity = remember(context) { context.findActivity() }
+
+    DisposableEffect(activity, pageUrl) {
+        val host = activity as? MainActivity
+        host?.setPlayerActive(true)
+        onDispose { host?.setPlayerActive(false) }
+    }
 
     BackHandler {
         when {
@@ -337,7 +355,13 @@ fun PlayerScreen(
                     errorText = null
                     channelSwitchPending = false
                 }
-                if (playbackState == Player.STATE_ENDED) controlsVisible = true
+                if (playbackState == Player.STATE_ENDED) {
+                    controlsVisible = true
+                    // Sonraki bolum varsa 4 sn sonra otomatik gec.
+                    if (!isLive && nextEpisodeUrl != null && nextCountdown == null) {
+                        nextCountdown = 4
+                    }
+                }
             }
 
             override fun onTracksChanged(tracks: Tracks) {
@@ -499,6 +523,21 @@ fun PlayerScreen(
         }
     }
 
+    LaunchedEffect(nextCountdown) {
+        val current = nextCountdown ?: return@LaunchedEffect
+        if (current <= 0) {
+            nextCountdown = null
+            val url = nextEpisodeUrl
+            val label = nextEpisodeTitle
+            if (!url.isNullOrBlank()) {
+                onNextEpisode(url, label ?: title)
+            }
+            return@LaunchedEffect
+        }
+        delay(1_000)
+        nextCountdown = current - 1
+    }
+
     // Kontroller bir süre kullanılmazsa gizlenir (tam ekran modu).
     // Canlı yayında oynatma durumu beklenmez; kanal değişimi de tam ekranda
     // çalışsın diye canlıda da otomatik gizlenir.
@@ -594,6 +633,11 @@ fun PlayerScreen(
 
     fun togglePlay() {
         if (!isLive && player.playbackState == Player.STATE_ENDED) {
+            // Bitti: once otomatik gecis sayaci varsa onu durdur.
+            if (nextEpisodeUrl != null && nextCountdown != null) {
+                nextCountdown = null
+                return
+            }
             player.seekTo(0)
             player.play()
             return
@@ -607,6 +651,7 @@ fun PlayerScreen(
         player.seekTo(target)
         positionMs = target
     }
+
 
     fun seekWithStep(direction: Int) {
         seekBy(seekStepSeconds * 1_000L * direction)
@@ -1038,6 +1083,27 @@ fun PlayerScreen(
                 }
         )
 
+        if (inPipMode) {
+            Box(
+                modifier = Modifier.fillMaxSize().onPreviewKeyEvent { event ->
+                    if (event.type == KeyEventType.KeyDown && event.key == Key.DirectionCenter) {
+                        runCatching { pipAspectFocus.requestFocus() }.isSuccess
+                    } else false
+                }
+            )
+            ControlCircle(
+                icon = Icons.Filled.AspectRatio,
+                contentDescription = "Ekran oranını değiştir",
+                size = 34.dp,
+                filled = false,
+                onClick = { cycleAspect() },
+                modifier = Modifier
+                    .focusRequester(pipAspectFocus)
+                    .align(Alignment.BottomEnd)
+                    .padding(18.dp)
+            )
+        }
+
         val showError = errorText != null
         val showLoading = resolving && !showError
 
@@ -1052,7 +1118,7 @@ fun PlayerScreen(
         }
 
         AnimatedVisibility(
-            visible = (controlsVisible || showLoading) && !showError,
+            visible = !inPipMode && (controlsVisible || showLoading) && !showError,
             enter = fadeIn(),
             exit = fadeOut(),
             modifier = Modifier.fillMaxSize()
@@ -1360,9 +1426,59 @@ fun PlayerScreen(
 
         // Canli yayinda cozunurluk bilgisi kontrol barinin saginda gosterilir.
 
+        // Sonraki bolum geri sayimi (dizilerde otomatik gecis).
+        AnimatedVisibility(
+            visible = nextCountdown != null,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier.align(Alignment.Center)
+        ) {
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(Color.Black.copy(alpha = 0.80f))
+                    .border(1.dp, NotflixColors.Accent.copy(alpha = 0.55f), RoundedCornerShape(16.dp))
+                    .padding(horizontal = 28.dp, vertical = 18.dp)
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = "Sonraki bölüm",
+                        color = NotflixColors.AccentSoft,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = nextEpisodeTitle ?: "",
+                        color = Color.White,
+                        fontSize = if (isTv) 15.sp else 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text(
+                        text = "${nextCountdown ?: 0} sn sonra geçiyor…",
+                        color = Color.White.copy(alpha = 0.75f),
+                        fontSize = 12.sp
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    NotflixButton(
+                        text = "Şimdi izle",
+                        onClick = {
+                            nextCountdown = null
+                            val url = nextEpisodeUrl
+                            val label = nextEpisodeTitle
+                            if (!url.isNullOrBlank()) onNextEpisode(url, label ?: title)
+                        }
+                    )
+                }
+            }
+        }
+
         // Kullanici ipucu (animasyonlu).
         AnimatedVisibility(
-            visible = hintText != null,
+            visible = !inPipMode && hintText != null,
             enter = fadeIn() + scaleIn(initialScale = 0.92f),
             exit = fadeOut() + scaleOut(targetScale = 0.96f),
             modifier = Modifier
@@ -1385,7 +1501,7 @@ fun PlayerScreen(
             }
         }
 
-        aspectNotice?.let { label ->
+        if (!inPipMode) aspectNotice?.let { label ->
             Box(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
@@ -1405,7 +1521,7 @@ fun PlayerScreen(
         }
 
         AnimatedVisibility(
-            visible = isLive && channelNotice != null,
+            visible = !inPipMode && isLive && channelNotice != null,
             enter = fadeIn(),
             exit = fadeOut(),
             modifier = Modifier.align(Alignment.Center)
@@ -2081,17 +2197,22 @@ private fun ControlCircle(
     modifier: Modifier = Modifier
 ) {
     var focused by remember { mutableStateOf(false) }
+    // Google TV'de odak halkasi marka renginde ve daha belirgin olsun
+    // (kumandada gezerken secili dugme net gorunsun).
+    val tv = isTvLayout()
+    val focusColor = if (tv) NotflixColors.AccentSoft else Color.White
     Box(
         modifier = modifier
             .size(size)
             .clip(CircleShape)
             .background(
-                if (focused) Color.White.copy(alpha = 0.16f)
-                else if (filled) Color.White else Color.Black.copy(alpha = 0.45f)
+                if (focused) {
+                    if (tv) NotflixColors.Accent.copy(alpha = 0.22f) else Color.White.copy(alpha = 0.16f)
+                } else if (filled) Color.White else Color.Black.copy(alpha = 0.45f)
             )
             .border(
-                if (focused) 2.dp else 1.dp,
-                if (focused) Color.White else Color.White.copy(alpha = 0.22f),
+                if (focused) (if (tv) 3.dp else 2.dp) else 1.dp,
+                if (focused) focusColor else Color.White.copy(alpha = 0.22f),
                 CircleShape
             )
             .onFocusChanged { focused = it.isFocused }
@@ -2115,17 +2236,20 @@ private fun SeekCircle(
     onClick: () -> Unit
 ) {
     var focused by remember { mutableStateOf(false) }
+    val tv = isTvLayout()
+    val focusColor = if (tv) NotflixColors.AccentSoft else Color.White
     Box(
         modifier = modifier
             .size(size)
             .clip(CircleShape)
             .background(
-                if (focused) Color.White.copy(alpha = 0.16f)
-                else Color.Black.copy(alpha = 0.42f)
+                if (focused) {
+                    if (tv) NotflixColors.Accent.copy(alpha = 0.22f) else Color.White.copy(alpha = 0.16f)
+                } else Color.Black.copy(alpha = 0.42f)
             )
             .border(
-                if (focused) 2.dp else 1.dp,
-                if (focused) Color.White else Color.White.copy(alpha = 0.2f),
+                if (focused) (if (tv) 3.dp else 2.dp) else 1.dp,
+                if (focused) focusColor else Color.White.copy(alpha = 0.2f),
                 CircleShape
             )
             .onFocusChanged { focused = it.isFocused }
