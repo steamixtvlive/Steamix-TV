@@ -85,6 +85,7 @@ import com.notflix.app.ui.screens.player.PlayerKeyBus
 import com.notflix.app.ui.theme.NotflixColors
 import com.notflix.app.ui.theme.NotflixTheme
 import com.notflix.app.NotflixApplication
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import java.util.concurrent.TimeoutException
 import kotlinx.coroutines.delay
@@ -249,8 +250,15 @@ private fun HomeContent(
             BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
                 val tv = isTvLayout()
                 // Hero tam gorunecek kadar kisa tutulur (yukari/alt kesilmesin).
+                // Telefonda yatay modda ekran yüksekligi kisitlayicidir: hero
+                // ekrandan uzun olursa altindaki baslik/poster ekranda gorunmez.
+                val screenHeight = LocalConfiguration.current.screenHeightDp
                 val heroHeight = if (tv) 520.dp
-                else (maxWidth * 0.78f).coerceIn(300.dp, 420.dp)
+                else {
+                    val byWidth = (maxWidth * 0.78f).coerceIn(280.dp, 420.dp)
+                    val byHeight = (screenHeight * 0.72f).dp
+                    minOf(byWidth, byHeight).coerceAtLeast(230.dp)
+                }
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -507,12 +515,18 @@ private fun HeroPanel(
     val context = LocalContext.current
     val app = context.applicationContext as NotflixApplication
     var description by remember(slide.url) { mutableStateOf(slide.description) }
+    // Hero'nun saginda gosterilecek kapak gorseli (telefonda da gorunmeli).
+    var heroPoster by remember(slide.url) { mutableStateOf(slide.poster) }
 
     LaunchedEffect(slide.url) {
-        if (description.isNotBlank()) return@LaunchedEffect
-        val filled = runCatching { app.content.fillDescriptions(listOf(slide)) }.getOrNull()
+        if (description.isNotBlank() && heroPoster.isNotBlank()) return@LaunchedEffect
+        val filled = runCatching {
+            app.content.fillDescriptions(listOf(slide.copy(poster = heroPoster)))
+        }.getOrNull()
         val text = filled?.firstOrNull()?.description.orEmpty()
         if (text.isNotBlank()) description = text
+        val posterUrl = filled?.firstOrNull()?.poster.orEmpty()
+        if (posterUrl.isNotBlank()) heroPoster = posterUrl
     }
 
     val posterBackdrop = slide.backdrop.contains("/posters/")
@@ -565,23 +579,30 @@ private fun HeroPanel(
                     )
                 )
         )
-        if (tv && posterBackdrop) {
+        // Kapak gorseli: once gercek poster, yoksa poster olarak kullanilan arka plan.
+        val coverImage = heroPoster.ifBlank { if (posterBackdrop) slide.backdrop else "" }
+        if (coverImage.isNotBlank()) {
             AsyncImage(
-                model = slide.backdrop,
+                model = coverImage,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
                     .align(Alignment.CenterEnd)
-                    .padding(end = 54.dp, bottom = 26.dp)
-                    .width(168.dp)
+                    .padding(end = if (tv) 54.dp else 18.dp, bottom = if (tv) 26.dp else 14.dp)
+                    .width(if (tv) 168.dp else 104.dp)
                     .aspectRatio(2f / 3f)
                     .clip(RoundedCornerShape(12.dp))
+                    .border(
+                        1.dp,
+                        Color.White.copy(alpha = 0.12f),
+                        RoundedCornerShape(12.dp)
+                    )
             )
         }
         Column(
             modifier = Modifier
                 .align(Alignment.BottomStart)
-                .fillMaxWidth(if (tv) 0.62f else 0.92f)
+                .fillMaxWidth(if (tv) 0.62f else if (coverImage.isNotBlank()) 0.74f else 0.92f)
                 .padding(
                     start = screenPadding(),
                     end = 12.dp,

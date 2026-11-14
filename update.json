@@ -1,6 +1,6 @@
 {
-  "versionCode": 17,
-  "versionName": "1.0.13",
+  "versionCode": 18,
+  "versionName": "1.0.14",
   "apkUrl": "https://github.com/steamixtvlive/Steamix-TV/releases/latest/download/notflix.apk",
-  "notes": "Fragmanlar düzeltildi, artık çoğu film ve dizide çalışıyor. Detay ekranında poster telefonda da görünüyor. Canlı TV çocuk bölümüne ZAROK TV eklendi, kanal paneli oynayan kanalın grubunu açıyor. Bu sürümden sonra sık güncelleme gelmeyecek."
+  "notes": "Kapak görselleri artık telefonda da görünüyor: ana sayfa ve detay ekranında poster sağda duruyor, hero ekrana sığacak şekilde kısaltıldı. Bu sürümden sonra sık güncelleme gelmeyecek."
 }

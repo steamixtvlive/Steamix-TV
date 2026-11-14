@@ -383,13 +383,20 @@ class FilmmoduRepository {
                 val gate = Semaphore(3)
                 slides.take(20).map { slide ->
                     async {
-                        if (slide.description.isNotBlank()) return@async slide
+                        // Aciklama ya da kapak gorseli eksikse detay sayfasi cekilir.
+                        if (slide.description.isNotBlank() && slide.poster.isNotBlank()) return@async slide
                         gate.withPermit {
                             val found = runCatching {
                                 withTimeoutOrNull(15_000) { detail(slide.url) }
                             }.getOrNull()
                             val text = found?.description.orEmpty().trim()
-                            if (text.isNotBlank()) slide.copy(description = text) else slide
+                            val posterUrl = found?.poster.orEmpty().trim()
+                            if (text.isNotBlank() || posterUrl.isNotBlank()) {
+                                slide.copy(
+                                    description = text.ifBlank { slide.description },
+                                    poster = posterUrl.ifBlank { slide.poster }
+                                )
+                            } else slide
                         }
                     }
                 }.awaitAll()
@@ -703,6 +710,10 @@ class FilmmoduRepository {
             val genreLine = slide.select("span.line-clamp-1").firstOrNull()?.text()?.trim()
                 ?: badges.filterNot { it in BADGE_WORDS }.joinToString(", ")
             val description = slide.selectFirst("p")?.text()?.trim().orEmpty()
+            // Kapak gorseli hero'da sag tarafta gosteriliyor; sitede varsa al,
+            // yoksa detay sayfasindan (fillDescriptions) sonradan gelir.
+            val posterImage = slide.selectFirst("img[src*=/posters/]")
+            val posterUrl = posterImage?.absUrl("src")?.ifBlank { posterImage.attr("src") }.orEmpty()
             HeroSlide(
                 title = title,
                 url = url,
@@ -711,7 +722,8 @@ class FilmmoduRepository {
                 rating = rating,
                 year = year,
                 genres = genreLine,
-                description = description
+                description = description,
+                poster = posterUrl
             )
         }.distinctBy { it.url }
 
@@ -762,7 +774,8 @@ class FilmmoduRepository {
                     backdrop = card.poster,
                     type = card.type,
                     rating = card.rating,
-                    year = card.year
+                    year = card.year,
+                    poster = card.poster
                 )
                 added = true
                 if (seen.size >= HERO_SIZE) break
@@ -781,7 +794,8 @@ class FilmmoduRepository {
                 backdrop = it.poster,
                 type = it.type,
                 rating = it.rating,
-                year = it.year
+                year = it.year,
+                poster = it.poster
             )
         }
 

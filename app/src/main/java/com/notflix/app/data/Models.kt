@@ -20,7 +20,9 @@ data class HeroSlide(
     val rating: Double? = null,
     val year: String? = null,
     val genres: String = "",
-    val description: String = ""
+    val description: String = "",
+    /** Hero'nun sag tarafinda gosterilecek kapak gorseli. */
+    val poster: String = ""
 )
 
 data class HomeSection(

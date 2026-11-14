@@ -69,6 +69,7 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -606,9 +607,14 @@ private fun DetailHero(
         modifier = if (fullscreen) {
             Modifier.fillMaxSize().background(Color.Black)
         } else {
+            // Telefonda yatay mod ekran kisitlayici: hero sabit 430dp kalinca
+            // altindaki baslik/poster ekranin disinda kalir. Ekran yuksekligine
+            // gore kisaltilir.
+            val screenHeight = LocalConfiguration.current.screenHeightDp
+            val heroHeight = if (tv) 540.dp else (screenHeight * 0.74f).dp.coerceIn(240.dp, 430.dp)
             Modifier
                 .fillMaxWidth()
-                .height(if (tv) 540.dp else 430.dp)
+                .height(heroHeight)
         }
     ) {
         if (!fullscreen) {
@@ -728,15 +734,15 @@ private fun DetailHero(
                 .padding(horizontal = screenPadding(), vertical = if (tv) 26.dp else 16.dp),
             verticalAlignment = Alignment.Bottom
         ) {
-            // Poster her cihazda gorunsun (TV, tablet, telefon).
-            if (detail.poster.isNotBlank()) {
-                val posterWidth = if (tv) 140.dp else 104.dp
+            // Kapak gorseli her cihazda gorunsun: TV'de solda, telefonda
+            // yatay modda sagda (hero'nun icinde, goz onunde).
+            if (tv && detail.poster.isNotBlank()) {
                 AsyncImage(
                     model = detail.poster,
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
-                        .width(posterWidth)
+                        .width(140.dp)
                         .aspectRatio(2f / 3f)
                         .clip(RoundedCornerShape(12.dp))
                         .border(
@@ -745,7 +751,7 @@ private fun DetailHero(
                             RoundedCornerShape(12.dp)
                         )
                 )
-                Spacer(modifier = Modifier.width(if (tv) 22.dp else 14.dp))
+                Spacer(modifier = Modifier.width(22.dp))
             }
             Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -841,6 +847,24 @@ private fun DetailHero(
                         maxLines = 1
                     )
                 }
+            }
+            // Telefonda kapak gorseli hero'nun sag tarafinda durur.
+            if (!tv && detail.poster.isNotBlank()) {
+                Spacer(modifier = Modifier.width(14.dp))
+                AsyncImage(
+                    model = detail.poster,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .width(96.dp)
+                        .aspectRatio(2f / 3f)
+                        .clip(RoundedCornerShape(12.dp))
+                        .border(
+                            1.dp,
+                            Color.White.copy(alpha = 0.12f),
+                            RoundedCornerShape(12.dp)
+                        )
+                )
             }
         }
     }
