@@ -9,6 +9,14 @@ html, body { margin: 0; padding: 0; background: #000; height: 100%; overflow: hi
    %200 yakinlastirma videoyu kirpiyor ve "hizli" gorunmesine yol aciyordu. */
 #player { position: absolute; top: 50%; left: 50%; width: 132%; height: 132%; transform: translate(-50%, -50%); }
 video { filter: brightness(1.06) contrast(1.05) saturate(1.08); }
+/* Beyaz "baslat" butonu / duraklatma perdesi / bitis ekrani gorunmesin.
+   Videonun tam ekran kesintisiz surmesi icin bunlar gizlenir. */
+.ytp-large-play, .ytp-pause-overlay, .ytp-endscreen-content,
+.ytp-ce-element, .ytp-chrome-bottom, .ytp-chrome-top,
+.ytp-gradient-bottom, .ytp-gradient-top, .ytp-error, .ytp-welcome {
+  display: none !important;
+}
+html.ytp-android-app, .ytp-android-app { display: none !important; }
 </style>
 </head>
 <body>
@@ -21,6 +29,36 @@ var __redirected = false;
 
 function slog(m) { try { Android.log(m); } catch (e) {} }
 
+// YouTube iframe yeniden olusturdugu arayuz katmanlarini gizle.
+function hideOverlays() {
+  try {
+    var style = document.getElementById('__nf_style');
+    if (!style) {
+      style = document.createElement('style');
+      style.id = '__nf_style';
+      style.innerHTML = '.ytp-large-play,.ytp-pause-overlay,.ytp-endscreen-content,' +
+        '.ytp-ce-element,.ytp-chrome-bottom,.ytp-chrome-top,.ytp-gradient-bottom,' +
+        '.ytp-gradient-top,.ytp-error,.ytp-welcome{display:none !important;}';
+      (document.head || document.documentElement).appendChild(style);
+    }
+  } catch (e) {}
+}
+
+// Video bittiginde bastan oynat; tekrarlanan ended sinyallerini es gec.
+var __restartPending = false;
+function restart() {
+  try {
+    if (!__player || !__player.seekTo || __restartPending) return;
+    __restartPending = true;
+    __player.seekTo(0, true);
+    __player.playVideo();
+    __playing = true;
+    hideOverlays();
+    slog('restarted');
+    setTimeout(function () { __restartPending = false; }, 1200);
+  } catch (e) { __restartPending = false; }
+}
+
 function redirectToWatch() {
   if (__redirected) { return; }
   __redirected = true;
@@ -30,6 +68,7 @@ function redirectToWatch() {
 
 function onYouTubeIframeAPIReady() {
   slog('iframe-api-ready');
+  hideOverlays();
   try {
     __player = new YT.Player('player', {
       videoId: '__VIDEO_ID__',
@@ -50,18 +89,36 @@ function onYouTubeIframeAPIReady() {
       events: {
         onReady: function (e) {
           slog('player-ready');
+          hideOverlays();
           // Kalite zorlanmaz (setPlaybackQuality oynaticiyi bos birakiyordu);
           // 360p istegi playerVars icinde veriliyor.
-          try { e.target.playVideo(); } catch (err) {}
+          try { e.target.mute(); } catch (err) {}
+          if (window.__svPaused !== true) {
+            try { e.target.playVideo(); } catch (err) {}
+          }
         },
         onStateChange: function (e) {
           slog('state:' + e.data);
+          hideOverlays();
           if (e.data === 1) {
+            __restartPending = false;
             __playing = true;
             try { Android.notifyPlaying(); } catch (err) {}
           }
           if (e.data === 0) {
-            try { e.target.seekTo(0, true); e.target.playVideo(); } catch (err) {}
+            // Bitti: bastan baslat, beyaz play butonu kalmasin.
+            if (window.__svPaused !== true) restart();
+          }
+          if (e.data === 2 && window.__svPaused !== true) {
+            // YouTube bazen akis sirasinda beklenmedik PLAYING -> PAUSED
+            // gecisi bildiriyor. Yalnizca kullanici pause istemediyse surt.
+            setTimeout(function () {
+              try {
+                if (__player && __player.getPlayerState() === 2 && window.__svPaused !== true) {
+                  __player.playVideo();
+                }
+              } catch (err) {}
+            }, 250);
           }
         },
         onError: function (e) {

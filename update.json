@@ -1,6 +1,6 @@
 {
-  "versionCode": 19,
-  "versionName": "1.0.15",
+  "versionCode": 20,
+  "versionName": "1.0.16",
   "apkUrl": "https://github.com/steamixtvlive/Steamix-TV/releases/latest/download/notflix.apk",
-  "notes": "Dizilerde sonraki bölüme otomatik geçiş artık her yerde çalışıyor: ana sayfadaki Devam Et sırasından, Devam Et sekmesinden ve detay ekranından oynatılan bölüm bitince 4 saniye sonra kendiliğinden sonraki bölüme geçiyor. Bu sürümden sonra sık güncelleme gelmeyecek."
+  "notes": "v16 son"
 }
