@@ -1,6 +1,6 @@
 {
-  "versionCode": 16,
-  "versionName": "1.0.12",
+  "versionCode": 17,
+  "versionName": "1.0.13",
   "apkUrl": "https://github.com/steamixtvlive/Steamix-TV/releases/latest/download/notflix.apk",
-  "notes": "Bu sürümden sonra sık güncelleme gelmeyecek. Canlı TV kanalları tarandı, çekmeyenler çıkarıldı ve çalışan kaynaklarla değiştirildi. TRT Belgesel ve Nat Geo Wild düzeltildi. Detay özetleri artık tam görünüyor, dizilerde sonraki bölüme otomatik geçiş var, çıkış düğmesi üst menüde."
+  "notes": "Fragmanlar düzeltildi, artık çoğu film ve dizide çalışıyor. Detay ekranında poster telefonda da görünüyor. Canlı TV çocuk bölümüne ZAROK TV eklendi, kanal paneli oynayan kanalın grubunu açıyor. Bu sürümden sonra sık güncelleme gelmeyecek."
 }

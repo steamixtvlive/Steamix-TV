@@ -728,13 +728,15 @@ private fun DetailHero(
                 .padding(horizontal = screenPadding(), vertical = if (tv) 26.dp else 16.dp),
             verticalAlignment = Alignment.Bottom
         ) {
-            if (detail.poster.isNotBlank() && tv) {
+            // Poster her cihazda gorunsun (TV, tablet, telefon).
+            if (detail.poster.isNotBlank()) {
+                val posterWidth = if (tv) 140.dp else 104.dp
                 AsyncImage(
                     model = detail.poster,
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
-                        .width(140.dp)
+                        .width(posterWidth)
                         .aspectRatio(2f / 3f)
                         .clip(RoundedCornerShape(12.dp))
                         .border(
@@ -743,7 +745,7 @@ private fun DetailHero(
                             RoundedCornerShape(12.dp)
                         )
                 )
-                Spacer(modifier = Modifier.width(22.dp))
+                Spacer(modifier = Modifier.width(if (tv) 22.dp else 14.dp))
             }
             Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {

@@ -12,8 +12,8 @@ android {
         applicationId = "com.notflix.app"
         minSdk = 24
         targetSdk = 36
-        versionCode = 16
-        versionName = "1.0.12"
+        versionCode = 17
+        versionName = "1.0.13"
         vectorDrawables.useSupportLibrary = true
     }
 
@@ -72,6 +72,20 @@ android {
         abortOnError = false
         checkReleaseBuilds = false
     }
+}
+
+// Release APK adı daima "notflix.apk" olsun (indirme bağlantısı buna bağlı).
+val renameReleaseApk by tasks.registering {
+    dependsOn("assembleRelease")
+    doLast {
+        val src = layout.buildDirectory.file("outputs/apk/release/app-release.apk").get().asFile
+        if (src.exists()) {
+            src.copyTo(File(src.parentFile, "notflix.apk"), overwrite = true)
+        }
+    }
+}
+tasks.matching { it.name == "assembleRelease" }.configureEach {
+    finalizedBy(renameReleaseApk)
 }
 
 dependencies {

@@ -1735,7 +1735,15 @@ private fun ChannelPanel(
 ) {
     val tv = LocalConfiguration.current.smallestScreenWidthDp >= 600
     var query by remember { mutableStateOf("") }
-    var group by remember { mutableStateOf("Tümü") }
+    // Panel acildiginda su an oynayan kanalin grubu secili olsun; boyce
+    // listede "Tumü" ilk sirada bekleyip ilk Ulusal kanali acilmaz.
+    val currentGroup = channels.getOrNull(currentIndex)?.group?.takeIf { it.isNotBlank() } ?: "Tümü"
+    var group by remember { mutableStateOf(currentGroup) }
+    // Kullanici elle bir grup secerse secim korunur (kanal degisse de).
+    var groupPinned by remember { mutableStateOf(false) }
+    LaunchedEffect(currentGroup) {
+        if (!groupPinned) group = currentGroup
+    }
     val focusManager = LocalFocusManager.current
     val groups = remember(channels) {
         val preferred = listOf(
@@ -1743,8 +1751,9 @@ private fun ChannelPanel(
             "Çocuk", "Müzik", "Yaşam", "Dini", "Avrupa"
         )
         val present = channels.map { it.group }.distinct()
-        listOf("Tümü") + preferred.filter { it in present } +
-            present.filter { it !in preferred }.sorted()
+        // "Tümü" sag panelin en sonunda olsun.
+        preferred.filter { it in present } +
+            present.filter { it !in preferred }.sorted() + listOf("Tümü")
     }
     val needle = remember(query) { panelSearchKey(query.trim()) }
     val filtered = remember(channels, group, needle) {

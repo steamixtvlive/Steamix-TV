@@ -505,13 +505,13 @@ class FilmmoduRepository {
             if (clean.isBlank()) return@withContext emptyList()
             val cacheKey = "${type.name}|${clean.lowercase()}|${year.orEmpty()}"
             trailerCache.get(cacheKey)?.let { return@withContext it.split(',').filter { k -> k.isNotBlank() } }
-            trailerInFlight[cacheKey]?.let { return@withContext withTimeoutOrNull(6_000) { it.await() }.orEmpty() }
+            trailerInFlight[cacheKey]?.let { return@withContext withTimeoutOrNull(12_000) { it.await() }.orEmpty() }
             val job = kotlinx.coroutines.CoroutineScope(Dispatchers.IO).async {
                 runCatching { lookupTrailers(clean, year, type) }.getOrDefault(emptyList())
                     .also { trailerCache.put(cacheKey, it.joinToString(",")) }
             }
             trailerInFlight[cacheKey] = job
-            try { withTimeoutOrNull(6_000) { job.await() }.orEmpty() }
+            try { withTimeoutOrNull(12_000) { job.await() }.orEmpty() }
             finally { if (job.isCompleted) trailerInFlight.remove(cacheKey, job) }
         }
 
@@ -522,34 +522,31 @@ class FilmmoduRepository {
         val kind = if (type == MediaType.MOVIE) "movie" else "tv"
         val query = URLEncoder.encode(title, "UTF-8")
         val releaseYear = year?.take(4)?.takeIf { it.length == 4 }
-        var id = 0
-        for (attempt in 0..1) {
-            val searchUrl = buildString {
-                append("https://api.themoviedb.org/3/search/$kind?api_key=$TMDB_KEY")
-                append("&language=tr-TR&query=$query")
-                if (attempt == 0 && releaseYear != null) {
-                    append(if (kind == "movie") "&year=$releaseYear" else "&first_air_date_year=$releaseYear")
-                }
-            }
-            val results = runCatching { JSONObject(tmdbGet(searchUrl)) }
-                .getOrNull()?.optJSONArray("results")
-            if (results != null && results.length() > 0) {
-                id = results.optJSONObject(0)?.optInt("id") ?: 0
-                if (id != 0) break
-            }
-        }
-        if (id == 0) return emptyList()
+        val id = findTmdbId(kind, query, releaseYear)
+
         val ordered = LinkedHashSet<String>()
-        for (lang in listOf("tr-TR")) {
-            val body = runCatching {
-                tmdbGet("https://api.themoviedb.org/3/$kind/$id/videos?api_key=$TMDB_KEY&language=$lang")
-            }.getOrNull() ?: continue
-            val videos = runCatching { JSONObject(body).optJSONArray("results") }
-                .getOrNull() ?: continue
-            val candidates = (0 until videos.length()).mapNotNull { index ->
-                videos.optJSONObject(index)?.takeIf {
-                    it.optString("site").equals("YouTube", true) &&
-                        it.optString("key").isNotBlank()
+        if (id != 0) {
+            // Onemli: Videolar sadece "language=tr-TR" ile sorgulanirsa cogu
+            // film icin 0 sonuc geliyordu (Inception: tr-TR=0, en-US=27) ve
+            // fragman hic gosterilmiyordu. Bu yuzden once dilsiz (en-US)
+            // sorgusu yapilir, tr-TR sonra eklenir.
+            val bodies = listOf(
+                runCatching {
+                    tmdbGet("https://api.themoviedb.org/3/$kind/$id/videos?api_key=$TMDB_KEY")
+                }.getOrNull(),
+                runCatching {
+                    tmdbGet("https://api.themoviedb.org/3/$kind/$id/videos?api_key=$TMDB_KEY&language=tr-TR")
+                }.getOrNull()
+            )
+            val candidates = ArrayList<JSONObject>()
+            bodies.forEach { body ->
+                val videos = runCatching { JSONObject(body ?: "{}").optJSONArray("results") }
+                    .getOrNull() ?: return@forEach
+                for (index in 0 until videos.length()) {
+                    videos.optJSONObject(index)?.takeIf {
+                        it.optString("site").equals("YouTube", true) &&
+                            it.optString("key").isNotBlank()
+                    }?.let { candidates += it }
                 }
             }
             val tier = listOf(
@@ -562,27 +559,91 @@ class FilmmoduRepository {
                 group.forEach { ordered += it.optString("key") }
             }
         }
-        // Gömülemeyen videolar (152-4/153) oynaticida siyah ekran birakir; onlar elenir.
-        val playable = ordered.toList()
-        if (playable.isNotEmpty()) return playable.take(6)
-        // TMDB sonucu yoksa YouTube aramasina dus.
-        val searched = searchTrailerOnYoutube(title)
-        return (searched + ordered).distinct().take(6)
+        // TMDB'de video yoksa YouTube aramasina dus.
+        if (ordered.isEmpty()) {
+            searchTrailerOnYoutube(title).forEach { ordered += it }
+        }
+        if (ordered.isEmpty()) return emptyList()
+        // Gomulmesi engellenen videolar (152-4/153) oynaticida siyah ekran
+        // birakir; oEmbed ile elenir.
+        val playable = LinkedHashSet<String>()
+        for (key in ordered) {
+            if (playable.size >= 4) break
+            if (isEmbeddable(key)) playable += key
+        }
+        return playable.toList()
     }
 
-    /** YouTube Data API ile "<baslik> official trailer" aramasi. */
-    private fun searchTrailerOnYoutube(title: String): List<String> {
-        val query = URLEncoder.encode("${title.trim()} official trailer", "UTF-8")
-        val url = "https://www.googleapis.com/youtube/v3/search?part=snippet" +
-            "&q=$query&type=video&maxResults=3&key=$YOUTUBE_API_KEY"
-        val body = runCatching { tmdbGet(url) }.getOrNull() ?: return emptyList()
-        val items = runCatching { JSONObject(body).optJSONArray("items") }.getOrNull() ?: return emptyList()
-        return (0 until items.length()).mapNotNull { index ->
-            items.optJSONObject(index)
-                ?.optJSONObject("id")
-                ?.optString("videoId")
-                ?.takeIf { it.isNotBlank() }
+    /** TMDB kimlik aramasi: once tr-TR, sonra dilsiz/en-US (farkli isimler icin). */
+    private fun findTmdbId(kind: String, query: String, releaseYear: String?): Int {
+        val variants = listOf("language=tr-TR", "", "language=en-US")
+        for ((index, langPart) in variants.withIndex()) {
+            val url = buildString {
+                append("https://api.themoviedb.org/3/search/$kind?api_key=$TMDB_KEY")
+                if (langPart.isNotEmpty()) append("&").append(langPart)
+                append("&query=$query")
+                if (index == 0 && releaseYear != null) {
+                    append(if (kind == "movie") "&year=$releaseYear" else "&first_air_date_year=$releaseYear")
+                }
+            }
+            val results = runCatching { JSONObject(tmdbGet(url)).optJSONArray("results") }.getOrNull()
+            if (results != null && results.length() > 0) {
+                val id = results.optJSONObject(0)?.optInt("id") ?: 0
+                if (id != 0) return id
+            }
         }
+        return 0
+    }
+
+    /**
+     * YouTube aramasi.
+     *
+     * Once Data API denenir; ancak anahtarin gunluk kotası (100 arama) dolu
+     * olunca 429 donuyor ve fragmanlar hic bulunamıyordu. Bu yuzden anahtarsiz
+     * arama sayfasi yedegi de var (kota yok, her zaman calisir).
+     */
+    private fun searchTrailerOnYoutube(title: String): List<String> {
+        val clean = title.trim()
+        if (clean.isBlank()) return emptyList()
+        val queries = listOf("$clean official trailer", "$clean fragman")
+        for (query in queries) {
+            val viaApi = runCatching {
+                val url = "https://www.googleapis.com/youtube/v3/search?part=snippet" +
+                    "&q=${URLEncoder.encode(query, "UTF-8")}&type=video&maxResults=5&key=$YOUTUBE_API_KEY"
+                val items = JSONObject(tmdbGet(url)).optJSONArray("items") ?: return@runCatching emptyList<String>()
+                (0 until items.length()).mapNotNull { index ->
+                    items.optJSONObject(index)
+                        ?.optJSONObject("id")
+                        ?.optString("videoId")
+                        ?.takeIf { it.isNotBlank() }
+                }
+            }.getOrDefault(emptyList())
+            if (viaApi.isNotEmpty()) return viaApi
+        }
+        // Anahtarsiz yedek: YouTube arama sayfasindan video kimlikleri alinir.
+        for (query in queries) {
+            val scraped = runCatching {
+                val url = "https://www.youtube.com/results?search_query=" +
+                    URLEncoder.encode(query, "UTF-8")
+                val request = Request.Builder()
+                    .url(url)
+                    .header("User-Agent", BROWSER_USER_AGENT)
+                    .header("Accept-Language", "en-US,en;q=0.9")
+                    .build()
+                client.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) return@use emptyList()
+                    val html = response.body?.string().orEmpty()
+                    Regex("\\\"videoId\\\":\\\"([A-Za-z0-9_-]{11})\\\"")
+                        .findAll(html)
+                        .map { it.groupValues[1] }
+                        .distinct()
+                        .take(8)
+                        .toList()
+                }
+            }.getOrDefault(emptyList())
+            if (scraped.isNotEmpty()) return scraped
+        }
+        return emptyList()
     }
 
     /**
@@ -596,8 +657,9 @@ class FilmmoduRepository {
             val request = Request.Builder()
                 .url(oembedUrl)
                 .header("Accept", "application/json")
+                .header("User-Agent", BROWSER_USER_AGENT)
                 .build()
-            tmdbClient.newCall(request).execute().use { response ->
+            client.newCall(request).execute().use { response ->
                 when {
                     response.code == 401 || response.code == 403 -> return false
                     response.code in 200..299 -> {
@@ -1106,6 +1168,8 @@ class FilmmoduRepository {
             "eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiIyMWUzZmYxZGEzYmQzOGQxZjE2NzU2MDE5MzUwM2MzNCIsIm5iZiI6MTc5MzQ0MDIxOS4wNjIsInN1YiI6IjZhZTViOWRiZDU4ZTI5MGIxMmM4YWUzOSIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.FxLyGjSG37R3qK1J1S_vyoyL3u3Q-7yVlp56ddPFHzM"
         private const val HERO_SIZE = 24
         private const val USER_AGENT =
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+        private const val BROWSER_USER_AGENT =
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
         private val RATING = Regex("""(\d+(?:[.,]\d+)?)""")
         private val YEAR = Regex("""(19|20)\d{2}""")
