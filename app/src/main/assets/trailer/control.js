@@ -34,8 +34,6 @@
     // Istenen durum sayfada saklanir; temizleme scripti bunu tekrar uygular.
     window.__svMuted = !!muted;
     window.__svPaused = !play;
-    if (play) { window.__playRequested = true; }
-    else { window.__playRequested = false; }
 
     // 1) YouTube sayfa oynaticisi: kendi ses/oynatma durumunu gunceller.
     var m = moviePlayer();

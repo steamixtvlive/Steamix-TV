@@ -61,8 +61,7 @@
     }
 
     try {
-      if (!v.__svLoopHandler) {
-        v.__svLoopHandler = function () {
+      v.addEventListener('ended', function () {
         try {
           v.currentTime = 0;
           if (!window.__svPaused) {
@@ -70,9 +69,7 @@
             if (p2 && p2.catch) { p2.catch(function () {}); }
           }
         } catch (e) {}
-        };
-        v.addEventListener('ended', v.__svLoopHandler);
-      }
+      });
     } catch (e) {}
 
     try {
