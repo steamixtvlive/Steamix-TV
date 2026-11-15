@@ -24,6 +24,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import java.io.ByteArrayInputStream
+import android.net.Uri
+import androidx.compose.ui.focus.FocusRequester
 
 private const val TAG = "NotflixTrailer"
 

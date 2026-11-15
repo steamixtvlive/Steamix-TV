@@ -118,6 +118,10 @@ fun DetailScreen(
     var detail by remember(url) { mutableStateOf<MediaDetail?>(null) }
     var error by remember(url) { mutableStateOf<String?>(null) }
     var retryTick by remember(url) { mutableIntStateOf(0) }
+    // Detay sayfasinda "Türkçe Dublaj / Altyazılı" bilgisini gostermek icin.
+    var audioLabels by remember(url) { mutableStateOf<List<String>>(emptyList()) }
+    var subtitleLabels by remember(url) { mutableStateOf<List<String>>(emptyList()) }
+    var trackInfoLoaded by remember(url) { mutableStateOf(false) }
 
     val backFocus = remember(url) { FocusRequester() }
     val playFocus = remember(url) { FocusRequester() }
@@ -159,6 +163,13 @@ fun DetailScreen(
         loading = false
     }
 
+    LaunchedEffect(url) {
+        val profile = runCatching { app.content.audioProfile(url) }.getOrNull()
+        audioLabels = profile?.first.orEmpty()
+        subtitleLabels = profile?.second.orEmpty()
+        trackInfoLoaded = true
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
         val current = detail
         when {
@@ -171,7 +182,10 @@ fun DetailScreen(
                 onOpenDetail = onOpenDetail,
                 onPersonClick = onPersonClick,
                 playFocus = playFocus,
-                backFocus = backFocus
+                backFocus = backFocus,
+                trackInfoLoaded = trackInfoLoaded,
+                audioLabels = audioLabels,
+                subtitleLabels = subtitleLabels
             )
         }
 
@@ -227,10 +241,20 @@ private fun DetailContent(
     onOpenDetail: (url: String, title: String) -> Unit,
     onPersonClick: (PersonCard) -> Unit,
     playFocus: FocusRequester,
-    backFocus: FocusRequester
+    backFocus: FocusRequester,
+    trackInfoLoaded: Boolean,
+    audioLabels: List<String>,
+    subtitleLabels: List<String>
 ) {
     val context = LocalContext.current
     val app = context.applicationContext as NotflixApplication
+    val turkishDubbing = audioLabels.any { isTurkishAudioLabel(it) }
+    val hasSubtitles = subtitleLabels.isNotEmpty()
+    val trackBadges = buildList {
+        if (turkishDubbing) add("Türkçe Dublaj")
+        if (hasSubtitles) add("Altyazılı")
+        if (!turkishDubbing && !hasSubtitles && audioLabels.isNotEmpty()) add("Orijinal Ses")
+    }
     val seasons = remember(detail.url) {
         detail.seasonNumbers.ifEmpty {
             detail.seasons.keys.sorted().ifEmpty { listOf(1) }
@@ -422,6 +446,7 @@ private fun DetailContent(
             },
             actionLabel = actionLabel,
             progressLabel = progressLabel,
+            trackBadges = if (trackInfoLoaded) trackBadges else emptyList(),
             favorite = favorite,
             onToggleFavorite = {
                 favorite = app.settings.toggleFavorite(
@@ -578,6 +603,7 @@ private fun DetailHero(
     onLibraryFocusChanged: (Boolean) -> Unit,
     actionLabel: String,
     progressLabel: String,
+    trackBadges: List<String> = emptyList(),
     favorite: Boolean,
     onToggleFavorite: () -> Unit,
     onPlay: () -> Unit,
@@ -816,6 +842,15 @@ private fun DetailHero(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
+                }
+                if (trackBadges.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        trackBadges.forEach { TrackBadge(it) }
+                    }
                 }
                 Spacer(modifier = Modifier.height(if (tv) 18.dp else 12.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -1076,4 +1111,32 @@ private fun TrailerControl(
             modifier = Modifier.size(if (isTvLayout()) 21.dp else 18.dp)
         )
     }
+}
+
+@Composable
+private fun TrackBadge(text: String) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(5.dp))
+            .background(NotflixColors.Accent.copy(alpha = 0.16f))
+            .border(1.dp, NotflixColors.Accent.copy(alpha = 0.35f), RoundedCornerShape(5.dp))
+            .padding(horizontal = 8.dp, vertical = 3.dp)
+    ) {
+        Text(
+            text = text,
+            color = NotflixColors.AccentSoft,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1
+        )
+    }
+}
+
+private fun isTurkishAudioLabel(label: String): Boolean {
+    val key = label.lowercase()
+        .replace("\u0307", "")
+        .replace('ı', 'i').replace('ç', 'c').replace('ğ', 'g')
+        .replace('ö', 'o').replace('ş', 's').replace('ü', 'u')
+    return key.contains("turk") || key.trim() == "tr" ||
+        key.startsWith("tr ") || key.startsWith("tr-") || key.contains("(tr)")
 }

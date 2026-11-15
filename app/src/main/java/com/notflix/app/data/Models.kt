@@ -83,8 +83,9 @@ data class PlayInfo(
     val title: String,
     val poster: String,
     val referer: String,
-    val audios: List<String> = emptyList(),
-    val subtitles: List<String> = emptyList()
+    val playerBase: String = "",
+    val audios: List<Map<String, Any?>> = emptyList(),
+    val subtitles: List<Map<String, Any?>> = emptyList()
 )
 
 data class LiveChannel(

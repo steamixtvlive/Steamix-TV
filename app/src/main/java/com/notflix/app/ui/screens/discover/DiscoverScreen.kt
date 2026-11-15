@@ -75,6 +75,12 @@ private val AUDIO_CHOICES = listOf(
     Choice("any", "Fark etmez", "Hepsi")
 )
 
+private val SUBTITLE_CHOICES = listOf(
+    Choice("any", "Fark etmez", "Altyazı seçeneği önemli değil"),
+    Choice("turkish", "Türkçe altyazı", "Türkçe altyazı seçeneği olanlar"),
+    Choice("available", "Altyazı var", "En az bir altyazı seçeneği olanlar")
+)
+
 private val MOOD_CHOICES = listOf(
     Choice("exciting", "Heyecanlı", "Aksiyon, gerilim"),
     Choice("emotional", "Duygusal", "Dram, romantik"),
@@ -83,7 +89,7 @@ private val MOOD_CHOICES = listOf(
     Choice("any", "Fark etmez", "Hepsi")
 )
 
-private val STEP_LABELS = listOf("Tür", "Ses", "Ruh hali", "Kategori")
+private val STEP_LABELS = listOf("Tür", "Ses", "Altyazı", "Ruh hali", "Kategori")
 
 @Composable
 fun DiscoverScreen(onItemClick: (MediaCard) -> Unit) {
@@ -93,6 +99,7 @@ fun DiscoverScreen(onItemClick: (MediaCard) -> Unit) {
     var step by remember { mutableIntStateOf(0) }
     var type by remember { mutableStateOf("any") }
     var audio by remember { mutableStateOf("any") }
+    var subtitles by remember { mutableStateOf("any") }
     var mood by remember { mutableStateOf("any") }
     var genres by remember { mutableStateOf<List<String>>(emptyList()) }
 
@@ -113,10 +120,10 @@ fun DiscoverScreen(onItemClick: (MediaCard) -> Unit) {
             else -> null
         }
         try {
-            val found = app.content.recommend(mediaType, genres, 36, audio = audio, mood = mood)
+            val found = app.content.recommend(mediaType, genres, 36, audio = audio, subtitles = subtitles, mood = mood)
             results = found
-            if (found.isEmpty() && audio != "any") {
-                error = "Bu seçimde uygun ses seçeneği bulunan içerik yok. Seçimleri değiştir."
+            if (found.isEmpty() && (audio != "any" || subtitles != "any")) {
+                error = "Seçtiğin ses ve altyazı tercihlerine uygun içerik bulunamadı. Seçimleri değiştirebilirsin."
             }
         } catch (cancel: kotlinx.coroutines.CancellationException) {
             throw cancel
@@ -140,7 +147,7 @@ fun DiscoverScreen(onItemClick: (MediaCard) -> Unit) {
             items = current,
             loading = loading,
             error = error,
-            summary = summary(type, audio, mood, genres),
+            summary = summary(type, audio, subtitles, mood, genres),
             onRetry = { submitTick++ },
             onRestart = {
                 results = null
@@ -166,6 +173,7 @@ fun DiscoverScreen(onItemClick: (MediaCard) -> Unit) {
                     step = step,
                     type = type,
                     audio = audio,
+                    subtitles = subtitles,
                     mood = mood,
                     genres = genres,
                     modifier = Modifier
@@ -185,11 +193,13 @@ fun DiscoverScreen(onItemClick: (MediaCard) -> Unit) {
                             step = step,
                             type = type,
                             audio = audio,
+                            subtitles = subtitles,
                             mood = mood,
                             genres = genres,
                             firstFocus = firstFocus,
                             onType = { type = it },
                             onAudio = { audio = it },
+                            onSubtitles = { subtitles = it },
                             onMood = { mood = it },
                             onGenre = { slug -> genres = toggleGenre(genres, slug) }
                         )
@@ -198,7 +208,7 @@ fun DiscoverScreen(onItemClick: (MediaCard) -> Unit) {
                     DiscoverActions(
                         step = step,
                         onBack = { if (step > 0) step-- },
-                        onNext = { if (step < 3) step++ else submit() }
+                        onNext = { if (step < 4) step++ else submit() }
                     )
                 }
             }
@@ -222,11 +232,13 @@ fun DiscoverScreen(onItemClick: (MediaCard) -> Unit) {
                         step = step,
                         type = type,
                         audio = audio,
+                        subtitles = subtitles,
                         mood = mood,
                         genres = genres,
                         firstFocus = firstFocus,
                         onType = { type = it },
                         onAudio = { audio = it },
+                        onSubtitles = { subtitles = it },
                         onMood = { mood = it },
                         onGenre = { slug -> genres = toggleGenre(genres, slug) }
                     )
@@ -235,7 +247,7 @@ fun DiscoverScreen(onItemClick: (MediaCard) -> Unit) {
                 DiscoverActions(
                     step = step,
                     onBack = { if (step > 0) step-- },
-                    onNext = { if (step < 3) step++ else submit() }
+                    onNext = { if (step < 4) step++ else submit() }
                 )
             }
         }
@@ -253,6 +265,7 @@ private fun DiscoverRail(
     step: Int,
     type: String,
     audio: String,
+    subtitles: String,
     mood: String,
     genres: List<String>,
     modifier: Modifier = Modifier
@@ -293,7 +306,7 @@ private fun DiscoverRail(
                 RailStep(
                     index = index,
                     label = label,
-                    value = stepValue(index, type, audio, mood, genres),
+                    value = stepValue(index, type, audio, subtitles, mood, genres),
                     active = index == step,
                     done = index < step
                 )
@@ -318,7 +331,7 @@ private fun DiscoverRail(
                 )
                 Spacer(modifier = Modifier.height(5.dp))
                 Text(
-                    text = summary(type, audio, mood, genres),
+                    text = summary(type, audio, subtitles, mood, genres),
                     color = NotflixColors.TextSecondary,
                     fontSize = 12.sp,
                     lineHeight = 17.sp
@@ -416,7 +429,7 @@ private fun DiscoverHeader(step: Int) {
                 .padding(horizontal = 10.dp, vertical = 5.dp)
         ) {
             Text(
-                text = "${step + 1}/4 · ${STEP_LABELS[step]}",
+                text = "${step + 1}/5 · ${STEP_LABELS[step]}",
                 color = Color.White,
                 fontSize = 10.sp,
                 fontWeight = FontWeight.SemiBold
@@ -434,7 +447,8 @@ private fun DiscoverQuestion(step: Int, compact: Boolean) {
             text = when (step) {
                 0 -> "Ne izlemek istersin?"
                 1 -> "Ses tercihin ne?"
-                2 -> "Bugünkü ruh halin?"
+                2 -> "Altyazı tercihin ne?"
+                3 -> "Bugünkü ruh halin?"
                 else -> "Hangi kategoriler?"
             },
             style = if (compact) MaterialTheme.typography.titleLarge
@@ -446,7 +460,8 @@ private fun DiscoverQuestion(step: Int, compact: Boolean) {
             text = when (step) {
                 0 -> "Film mi dizi mi, karar ver."
                 1 -> "Dublaj mı orijinal mi?"
-                2 -> "Nasıl bir his arıyorsun?"
+                2 -> "Türkçe altyazı veya kullanılabilir altyazısı olan içerikleri seç."
+                3 -> "Nasıl bir his arıyorsun?"
                 else -> "En fazla üç tür seçebilirsin. Boş bırakırsan karışık gelir."
             },
             color = NotflixColors.TextMuted,
@@ -462,7 +477,7 @@ private fun StepBar(step: Int) {
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(5.dp)
     ) {
-        repeat(4) { index ->
+        repeat(5) { index ->
             Box(
                 modifier = Modifier
                     .weight(1f)
@@ -485,11 +500,13 @@ private fun DiscoverOptions(
     step: Int,
     type: String,
     audio: String,
+    subtitles: String,
     mood: String,
     genres: List<String>,
     firstFocus: FocusRequester,
     onType: (String) -> Unit,
     onAudio: (String) -> Unit,
+    onSubtitles: (String) -> Unit,
     onMood: (String) -> Unit,
     onGenre: (String) -> Unit
 ) {
@@ -517,6 +534,13 @@ private fun DiscoverOptions(
                     onSelect = onAudio
                 )
                 2 -> ChoiceGrid(
+                    choices = SUBTITLE_CHOICES,
+                    selected = subtitles,
+                    columns = columns,
+                    firstFocus = firstFocus,
+                    onSelect = onSubtitles
+                )
+                3 -> ChoiceGrid(
                     choices = MOOD_CHOICES,
                     selected = mood,
                     columns = columns,
@@ -550,7 +574,7 @@ private fun DiscoverActions(
             NotflixButton(text = "Geri", primary = false, onClick = onBack)
         }
         NotflixButton(
-            text = if (step < 3) "Devam  →" else "Önerileri Getir",
+            text = if (step < 4) "Devam  →" else "Önerileri Getir",
             modifier = Modifier.weight(1f),
             onClick = onNext
         )
@@ -832,23 +856,26 @@ private fun stepValue(
     index: Int,
     type: String,
     audio: String,
+    subtitles: String,
     mood: String,
     genres: List<String>
 ): String = when (index) {
     0 -> if (type == "any") "" else TYPE_CHOICES.firstOrNull { it.key == type }?.label.orEmpty()
     1 -> if (audio == "any") "" else AUDIO_CHOICES.firstOrNull { it.key == audio }?.label.orEmpty()
-    2 -> if (mood == "any") "" else MOOD_CHOICES.firstOrNull { it.key == mood }?.label.orEmpty()
+    2 -> if (subtitles == "any") "" else SUBTITLE_CHOICES.firstOrNull { it.key == subtitles }?.label.orEmpty()
+    3 -> if (mood == "any") "" else MOOD_CHOICES.firstOrNull { it.key == mood }?.label.orEmpty()
     else -> genres.joinToString(", ") { slug ->
         NOTFLIX_GENRES.firstOrNull { it.slug == slug }?.label ?: slug
     }
 }
 
-private fun summary(type: String, audio: String, mood: String, genres: List<String>): String {
+private fun summary(type: String, audio: String, subtitles: String, mood: String, genres: List<String>): String {
     val typeLabel = TYPE_CHOICES.firstOrNull { it.key == type }?.label ?: "Fark etmez"
     val audioLabel = AUDIO_CHOICES.firstOrNull { it.key == audio }?.label.orEmpty()
+    val subtitleLabel = SUBTITLE_CHOICES.firstOrNull { it.key == subtitles }?.label.orEmpty()
     val moodLabel = MOOD_CHOICES.firstOrNull { it.key == mood }?.label.orEmpty()
     val genreLabels = NOTFLIX_GENRES.filter { it.slug in genres }.joinToString(", ") { it.label }
-    return listOf(typeLabel, audioLabel, moodLabel, genreLabels)
+    return listOf(typeLabel, audioLabel, subtitleLabel, moodLabel, genreLabels)
         .filter { it.isNotBlank() }
         .joinToString(" · ")
 }

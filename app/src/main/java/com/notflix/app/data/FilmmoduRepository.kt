@@ -18,6 +18,8 @@ import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import java.io.File
+import java.security.MessageDigest
 import okhttp3.Call
 import okhttp3.Callback
 import okhttp3.OkHttpClient
@@ -32,6 +34,9 @@ import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 
 class FilmmoduRepository {
+
+    private val appContext: android.content.Context
+        get() = com.notflix.app.NotflixApplication.instance.applicationContext
 
     private val client = OkHttpClient.Builder()
         .connectTimeout(12, TimeUnit.SECONDS)
@@ -249,10 +254,11 @@ class FilmmoduRepository {
         genres: List<String>,
         limit: Int = 36,
         audio: String? = null,
+        subtitles: String? = null,
         mood: String? = null
     ): List<MediaCard> = withContext(Dispatchers.IO) {
         withTimeoutOrNull(22_000) {
-            recommendInternal(type, genres, limit, audio, mood)
+            recommendInternal(type, genres, limit, audio, subtitles, mood)
         } ?: fallbackRecommend(type, limit)
     }
 
@@ -261,6 +267,7 @@ class FilmmoduRepository {
         genres: List<String>,
         limit: Int,
         audio: String?,
+        subtitles: String?,
         mood: String?
     ): List<MediaCard> {
         val moodSlugs = if (mood.isNullOrBlank() || mood == "any") {
@@ -307,8 +314,8 @@ class FilmmoduRepository {
             }
         }
         var pool = collected.values.toList()
-        if (!audio.isNullOrBlank() && audio != "any") {
-            pool = filterByAudio(pool, audio, limit)
+        if ((!audio.isNullOrBlank() && audio != "any") || (!subtitles.isNullOrBlank() && subtitles != "any")) {
+            pool = filterByTracks(pool, audio ?: "any", subtitles ?: "any", limit)
         }
         return pool.sortedWith(compareByDescending<MediaCard> { it.rating ?: 0.0 })
             .take(limit)
@@ -332,38 +339,39 @@ class FilmmoduRepository {
         }.getOrNull().orEmpty()
     }
 
-    private suspend fun filterByAudio(
+    private suspend fun filterByTracks(
         pool: List<MediaCard>,
-        mode: String,
+        audioMode: String,
+        subtitleMode: String,
         limit: Int
     ): List<MediaCard> {
         val candidates = pool
             .sortedWith(compareByDescending<MediaCard> { it.rating ?: 0.0 })
-            .take(minOf(24, maxOf(12, limit)))
+            .take(minOf(72, maxOf(24, limit * 2)))
         val matches = java.util.Collections.synchronizedList(mutableListOf<Pair<Int, MediaCard>>())
         runCatching {
             withTimeoutOrNull(12_000) {
                 coroutineScope {
-                    val gate = Semaphore(8)
+                    val gate = Semaphore(6)
                     candidates.mapIndexed { index, card ->
                         async {
                             gate.withPermit {
                                 val profile = runCatching { audioProfile(card.url) }.getOrNull()
                                     ?: return@withPermit
-                                val turkishAudio = profile.first.any {
-                                    it.contains("türkçe", ignoreCase = true) ||
-                                        it.contains("turkce", ignoreCase = true)
-                                }
-                                val turkishSub = profile.second.any {
-                                    it.contains("türkçe", ignoreCase = true) ||
-                                        it.contains("turkce", ignoreCase = true)
-                                }
-                                val ok = when (mode) {
+                                val turkishAudio = profile.first.any(::isTurkishLanguageLabel)
+                                val turkishSub = profile.second.any(::isTurkishLanguageLabel)
+                                val audioOk = when (audioMode) {
                                     "dub" -> turkishAudio
                                     "sub" -> turkishSub && !turkishAudio
                                     "original" -> !turkishAudio
                                     else -> true
                                 }
+                                val subtitleOk = when (subtitleMode) {
+                                    "turkish" -> turkishSub
+                                    "available" -> profile.second.isNotEmpty()
+                                    else -> true
+                                }
+                                val ok = audioOk && subtitleOk
                                 if (ok) matches.add(index to card)
                             }
                         }
@@ -483,7 +491,11 @@ class FilmmoduRepository {
         val sPath = Regex("""["']([^"']*s\.php\?s=)["']""")
             .find(core)?.groupValues?.getOrNull(1)
             ?: "/assets/js/s.php?s="
-        val tokenUrl = if (sPath.startsWith("http")) sPath + pv else playerBase + sPath + pv
+        val tokenUrl = when {
+            sPath.startsWith("http") -> sPath + pv
+            sPath.startsWith("/") -> playerBase + sPath + pv
+            else -> "$playerBase/$sPath$pv"
+        }
 
         val playerHtml = fetch(tokenUrl, referer = effectivePage)
         val json = Regex(
@@ -497,21 +509,44 @@ class FilmmoduRepository {
         if (stream.isBlank()) throw IOException("Yayın adresi bulunamadı.")
         val audios = player.optJSONArray("audios")?.let { array ->
             (0 until array.length()).mapNotNull { i ->
-                array.optJSONObject(i)?.optString("label")?.takeIf { it.isNotBlank() }
+                array.optJSONObject(i)?.let { item ->
+                    val label = item.optString("label").takeIf { it.isNotBlank() } ?: return@let null
+                    buildMap<String, Any?> {
+                        put("label", label)
+                        listOf("url", "src", "file", "stream", "mime", "type", "lang", "language", "default")
+                            .forEach { key -> if (!item.isNull(key)) put(key, item.opt(key)) }
+                    }
+                }
             }
         }.orEmpty()
         val subtitles = player.optJSONArray("subs")?.let { array ->
             (0 until array.length()).mapNotNull { i ->
-                array.optJSONObject(i)?.optString("label")?.takeIf { it.isNotBlank() }
+                array.optJSONObject(i)?.let { item ->
+                    val label = item.optString("label").takeIf { it.isNotBlank() } ?: return@let null
+                    buildMap<String, Any?> {
+                        put("label", label)
+                        listOf("url", "src", "file", "stream", "mime", "type", "lang", "language", "default")
+                            .forEach { key -> if (!item.isNull(key)) put(key, item.opt(key)) }
+                    }
+                }
             }
         }.orEmpty()
+        val verifiedSubtitles = subtitles.map { subtitle ->
+            val source = sequenceOf("url", "src", "file", "stream", "link")
+                .mapNotNull { subtitle[it] as? String }
+                .firstOrNull { it.isNotBlank() }
+            val downloaded = source?.let { downloadSubtitle(it, effectivePage, playerBase) }
+            if (downloaded == null) subtitle else subtitle +
+                ("detectedMime" to downloaded.first) + ("localPath" to downloaded.second.absolutePath)
+        }
         val info = PlayInfo(
             streamUrl = stream,
             title = player.optString("title").ifBlank { doc.selectFirst("h1")?.text().orEmpty() },
             poster = player.optString("poster"),
             referer = effectivePage,
+            playerBase = playerBase,
             audios = audios,
-            subtitles = subtitles
+            subtitles = verifiedSubtitles
         )
         audioCache.put(effectivePage, info)
         audioCache.put(pageUrl, info)
@@ -520,11 +555,83 @@ class FilmmoduRepository {
 
     suspend fun audioProfile(pageUrl: String): Pair<List<String>, List<String>>? =
         withContext(Dispatchers.IO) {
-            audioCache.get(pageUrl)?.let { return@withContext it.audios to it.subtitles }
+            audioCache.get(pageUrl)?.let { info ->
+                return@withContext info.audios.mapNotNull { (it as? Map<*, *>)?.get("label") as? String } to
+                    info.subtitles.mapNotNull { (it as? Map<*, *>)?.get("label") as? String }
+            }
             val info = runCatching { withTimeoutOrNull(6_000) { resolve(pageUrl) } }.getOrNull()
                 ?: return@withContext null
-            info.audios to info.subtitles
+            info.audios.mapNotNull { (it as? Map<*, *>)?.get("label") as? String } to
+                info.subtitles.mapNotNull { (it as? Map<*, *>)?.get("label") as? String }
         }
+
+    private suspend fun downloadSubtitle(
+        source: String,
+        referer: String,
+        playerBase: String
+    ): Pair<String, File>? = withContext(Dispatchers.IO) {
+        runCatching {
+            val resolved = resolvePlayerAsset(source, playerBase)
+            val request = Request.Builder()
+                .url(resolved)
+                .header("User-Agent", USER_AGENT)
+                .header("Accept", "text/vtt,application/x-subrip,application/ttml+xml,*/*;q=0.8")
+                .header("Referer", referer)
+                .header("Origin", "https://filmmodu.news")
+                .build()
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@use null
+                val type = response.header("Content-Type")?.substringBefore(';')?.trim()?.lowercase()
+                val body = response.body?.bytes() ?: return@use null
+                if (body.isEmpty()) return@use null
+                val text = body.toString(Charsets.UTF_8).removePrefix("\uFEFF").trimStart()
+                // Icerikten (sniff) tespit: sunucu yanlis Content-Type donse bile
+                // altyazi formati taninsin (VTT/SRT/TTML).
+                val mime = when {
+                    text.startsWith("WEBVTT") -> "text/vtt"
+                    Regex("^\\d+\\r?\\n\\d{2}:\\d{2}:\\d{2}").containsMatchIn(text) -> "application/x-subrip"
+                    text.contains("<tt") || text.contains("<p ") || text.contains("<p>") -> "application/ttml+xml"
+                    type in setOf("text/vtt", "text/webvtt") -> "text/vtt"
+                    type in setOf("application/x-subrip", "application/subrip", "text/srt") -> "application/x-subrip"
+                    type in setOf("application/ttml+xml", "application/ttml+xml+dfxp") -> "application/ttml+xml"
+                    else -> null
+                } ?: return@use null
+                val cacheDir = File(appContext.cacheDir, "filmmodu-subtitles")
+                if (!cacheDir.exists() && !cacheDir.mkdirs()) return@use null
+                val digest = MessageDigest.getInstance("SHA-256")
+                    .digest(resolved.toByteArray(Charsets.UTF_8))
+                    .joinToString("") { "%02x".format(it) }
+                val extension = when (mime) {
+                    "text/vtt" -> "vtt"
+                    "application/x-subrip" -> "srt"
+                    else -> "ttml"
+                }
+                val file = File(cacheDir, "$digest.$extension")
+                if (!file.exists() || file.length() != body.size.toLong()) {
+                    val tmp = File(cacheDir, "$digest.$extension.tmp")
+                    tmp.writeBytes(body)
+                    if (!tmp.renameTo(file)) {
+                        tmp.copyTo(file, overwrite = true)
+                        tmp.delete()
+                    }
+                }
+                mime to file
+            }
+        }.getOrNull()
+    }
+
+    private fun resolvePlayerAsset(source: String, playerBase: String): String = when {
+        source.startsWith("https://", true) || source.startsWith("http://", true) -> source
+        source.startsWith("//") -> "https:$source"
+        source.startsWith("/") -> playerBase.trimEnd('/') + source
+        else -> playerBase.trimEnd('/') + "/" + source.trimStart('/')
+    }
+
+    private fun isTurkishLanguageLabel(value: String): Boolean {
+        val label = normalizeSearch(value)
+        return label.contains("turkce") || label.contains("turkish") ||
+            label.contains("tr audio") || label == "tr" || label.contains("(tr)")
+    }
 
     fun cachedTrailerKeys(title: String, year: String?, type: MediaType): List<String> {
         val clean = title.substringBefore(" · ").trim()

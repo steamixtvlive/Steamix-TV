@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.ContextWrapper
 import android.content.pm.ActivityInfo
 import android.media.AudioManager
+import java.io.File
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -27,9 +28,13 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -39,6 +44,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AspectRatio
+import androidx.compose.material.icons.filled.AudioFile
+import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.Subtitles
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FullscreenExit
 import androidx.compose.material.icons.filled.KeyboardArrowLeft
@@ -84,6 +92,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
@@ -103,6 +112,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.C
+import androidx.media3.common.Format
+import androidx.media3.common.MimeTypes
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
@@ -113,6 +124,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.hls.HlsMediaSource
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
+import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import coil.compose.AsyncImage
@@ -130,8 +142,10 @@ import com.notflix.app.ui.components.VolumeHud
 import com.notflix.app.ui.components.isTvLayout
 import com.notflix.app.ui.theme.NotflixColors
 import kotlin.math.roundToInt
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 
 @Composable
@@ -215,6 +229,9 @@ fun PlayerScreen(
         DefaultDataSource.Factory(context, httpFactory)
     }
     val trackSelector = remember { DefaultTrackSelector(context) }
+    var resolvedPlayback by remember(pageUrl, liveUrl) { mutableStateOf<PlayInfo?>(null) }
+    var subtitleTrackLabels by remember(pageUrl, liveUrl) { mutableStateOf<List<String>>(emptyList()) }
+    var subtitleWarning by remember(pageUrl, liveUrl) { mutableStateOf<String?>(null) }
     val player = remember {
         ExoPlayer.Builder(context)
             .setTrackSelector(trackSelector)
@@ -247,6 +264,8 @@ fun PlayerScreen(
     // sayacini sifirlar).
     var controlsTick by remember { mutableIntStateOf(0) }
     var qualityOpen by remember { mutableStateOf(false) }
+    var languageMenuOpen by remember { mutableStateOf(false) }
+    var subtitleMenuOpen by remember { mutableStateOf(false) }
     var panelOpen by remember { mutableStateOf(false) }
     var aspect by remember { mutableStateOf(if (isLive) app.settings.playerAspect else "fit") }
     var aspectNotice by remember { mutableStateOf<String?>(null) }
@@ -259,6 +278,18 @@ fun PlayerScreen(
     var qualityHeight by remember { mutableStateOf<Int?>(null) }
     var videoHeights by remember { mutableStateOf<List<Int>>(emptyList()) }
     var videoInfo by remember { mutableStateOf<String?>(null) }
+    var audioTracks by remember { mutableStateOf<List<PlaybackTrackOption>>(emptyList()) }
+    var textTracks by remember { mutableStateOf<List<PlaybackTrackOption>>(emptyList()) }
+    var selectedAudioTrack by remember { mutableIntStateOf(-1) }
+    var selectedTextTrack by remember { mutableIntStateOf(-1) }
+    var subtitlesEnabled by remember(pageUrl, liveUrl) { mutableStateOf(false) }
+    var preferredSubtitleApplied by remember(pageUrl, liveUrl) { mutableStateOf(false) }
+    var subtitleChoiceMade by remember(pageUrl, liveUrl) { mutableStateOf(false) }
+    // Altyazi dosyalarini ExoPlayer'a vermek yerine kendimiz okuyup ciziyoruz.
+    // (Media3 1.7, ham VTT/SRT'yi "legacy decoding" kapali oldugu icin reddediyor.)
+    var subtitleOptions by remember(pageUrl, liveUrl) { mutableStateOf<List<SubtitleOption>>(emptyList()) }
+    var selectedSubtitleIndex by remember(pageUrl, liveUrl) { mutableIntStateOf(-1) }
+    var subtitleCues by remember(pageUrl, liveUrl) { mutableStateOf<List<SubtitleCue>>(emptyList()) }
     // Canli yayinda kontrol barinda gosterilecek kalite etiketi (orn. "1080p").
     var liveQualityLabel by remember { mutableStateOf<String?>(null) }
     // Oynatma hizi (film/dizi).
@@ -297,10 +328,31 @@ fun PlayerScreen(
     val volumeControlFocus = remember { FocusRequester() }
     val speedControlFocus = remember { FocusRequester() }
     val qualityControlFocus = remember { FocusRequester() }
+    val subtitleControlFocus = remember { FocusRequester() }
     val aspectControlFocus = remember { FocusRequester() }
     val panelFocus = remember { FocusRequester() }
     val view = LocalView.current
     val activity = remember(context) { context.findActivity() }
+
+    fun selectPreferredSubtitle(options: List<PlaybackTrackOption>) {
+        if (preferredSubtitleApplied || subtitleChoiceMade || options.isEmpty()) return
+        val preferred = options.firstOrNull { option ->
+            val language = option.language.orEmpty().lowercase()
+            language.startsWith("tr") || language.startsWith("en") ||
+                option.label.contains("turk", ignoreCase = true) || option.label.contains("türk", ignoreCase = true)
+        } ?: options.first()
+        trackSelector.setParameters(
+            trackSelector.buildUponParameters()
+                .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
+                .clearOverridesOfType(C.TRACK_TYPE_TEXT)
+                .addOverride(TrackSelectionOverride(preferred.group.mediaTrackGroup, preferred.groupTrackIndex))
+                .build()
+        )
+        selectedTextTrack = preferred.id
+        subtitlesEnabled = true
+        preferredSubtitleApplied = true
+        android.util.Log.d("NotflixSub", "selectPreferredSubtitle: ${preferred.label} (id=${preferred.id})")
+    }
 
     DisposableEffect(activity, pageUrl) {
         val host = activity as? MainActivity
@@ -310,6 +362,8 @@ fun PlayerScreen(
 
     BackHandler {
         when {
+            languageMenuOpen -> languageMenuOpen = false
+            subtitleMenuOpen -> subtitleMenuOpen = false
             qualityOpen -> qualityOpen = false
             panelOpen -> panelOpen = false
             else -> onBack()
@@ -384,6 +438,21 @@ fun PlayerScreen(
                 if (playbackState == Player.STATE_READY) {
                     errorText = null
                     channelSwitchPending = false
+                    if (!preferredSubtitleApplied && textTracks.isNotEmpty()) selectPreferredSubtitle(textTracks)
+                    // Altyazi secimi bazen STATE_READY'de tam uygulanmamis olabiliyor;
+                    // hazir oldugunda secili track'i yeniden uygular.
+                    if (subtitlesEnabled && selectedTextTrack >= 0) {
+                        val option = textTracks.firstOrNull { it.id == selectedTextTrack }
+                        if (option != null) {
+                            trackSelector.setParameters(
+                                trackSelector.buildUponParameters()
+                                    .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
+                                    .clearOverridesOfType(C.TRACK_TYPE_TEXT)
+                                    .addOverride(TrackSelectionOverride(option.group.mediaTrackGroup, option.groupTrackIndex))
+                                    .build()
+                            )
+                        }
+                    }
                 }
                 if (playbackState == Player.STATE_ENDED) {
                     controlsVisible = true
@@ -396,6 +465,26 @@ fun PlayerScreen(
             }
 
             override fun onTracksChanged(tracks: Tracks) {
+                val nextAudioTracks = playbackTrackOptions(tracks, C.TRACK_TYPE_AUDIO)
+                val nextTextTracks = playbackTrackOptions(tracks, C.TRACK_TYPE_TEXT)
+                audioTracks = nextAudioTracks
+                textTracks = nextTextTracks
+                android.util.Log.d("NotflixSub", "onTracksChanged: textTracks=${nextTextTracks.size} audioTracks=${nextAudioTracks.size}")
+                if (nextTextTracks.isNotEmpty()) subtitleWarning = null
+                selectedAudioTrack = nextAudioTracks.firstOrNull { it.selected }?.id
+                    ?: nextAudioTracks.firstOrNull()?.id
+                    ?: -1
+                val selectedText = nextTextTracks.firstOrNull { it.selected }?.id
+                if (selectedText != null) {
+                    selectedTextTrack = selectedText
+                    subtitlesEnabled = true
+                } else if (nextTextTracks.isEmpty()) {
+                    selectedTextTrack = -1
+                    if (!subtitleChoiceMade) subtitlesEnabled = false
+                }
+                if (!preferredSubtitleApplied && nextTextTracks.isNotEmpty()) {
+                    selectPreferredSubtitle(nextTextTracks)
+                }
                 val heights = tracks.groups
                     .filter { it.type == C.TRACK_TYPE_VIDEO }
                     .flatMap { group ->
@@ -440,6 +529,14 @@ fun PlayerScreen(
     LaunchedEffect(player, pageUrl, liveUrl, index, resolveTick, attempt) {
         resolving = true
         errorText = null
+        audioTracks = emptyList()
+        textTracks = emptyList()
+        subtitlesEnabled = false
+        subtitleTrackLabels = emptyList()
+        subtitleWarning = null
+        preferredSubtitleApplied = false
+        subtitleChoiceMade = false
+        resolvedPlayback = null
         val info: PlayInfo? = if (isLive) {
             val current = channels.getOrNull(index)
             val stream = when {
@@ -479,6 +576,16 @@ fun PlayerScreen(
             resolving = false
             return@LaunchedEffect
         }
+        resolvedPlayback = info
+        subtitleTrackLabels = info.subtitles.mapNotNull { it["label"] as? String }.distinct()
+        if (subtitleTrackLabels.isNotEmpty() && info.subtitles.none { subtitle ->
+                sequenceOf("url", "src", "file", "stream", "link")
+                    .mapNotNull { subtitle[it] as? String }
+                    .any { it.startsWith("https://") || it.startsWith("http://") }
+            }
+        ) {
+            subtitleWarning = "Altyazı etiketleri geldi ancak indirilebilir dosya adresi alınamadı."
+        }
         if (!isLive && info.poster.isNotBlank()) posterUrl = info.poster
         val startAt = when {
             isLive -> 0L
@@ -487,7 +594,39 @@ fun PlayerScreen(
             else -> 0L
         }
         player.stop()
-        val mediaItem = MediaItem.fromUri(info.streamUrl)
+        val mediaItemBuilder = MediaItem.Builder()
+            .setUri(info.streamUrl)
+            .setMediaId(pageUrl)
+        val loadedSubtitleOptions = info.subtitles.mapNotNull { subtitle ->
+            val localPath = subtitle["localPath"] as? String ?: return@mapNotNull null
+            val file = File(localPath).takeIf { it.isFile && it.length() > 0L } ?: return@mapNotNull null
+            val label = subtitle["label"] as? String ?: "Altyazı"
+            val language = subtitle["language"] as? String ?: subtitle["lang"] as? String
+            SubtitleOption(label, language, file)
+        }.distinctBy { it.file.absolutePath }
+        if (subtitleOptions.isEmpty() || loadedSubtitleOptions.isNotEmpty()) {
+            subtitleOptions = loadedSubtitleOptions
+        }
+        if (loadedSubtitleOptions.isEmpty()) {
+            if (info.subtitles.isNotEmpty()) {
+                subtitleWarning = "Altyazı dosyaları indirilemedi. Tekrar deneyin."
+            }
+        } else {
+            subtitleWarning = null
+            if (!subtitleChoiceMade) {
+                selectedSubtitleIndex = loadedSubtitleOptions.indexOfFirst { option ->
+                    val lang = option.language.orEmpty().lowercase()
+                    lang.startsWith("tr") ||
+                        option.label.contains("türk", ignoreCase = true) ||
+                        option.label.contains("turk", ignoreCase = true)
+                }.let { if (it >= 0) it else 0 }
+            }
+        }
+        android.util.Log.d(
+            "NotflixSub",
+            "altyazi dosyasi: ${loadedSubtitleOptions.size} | secili: $selectedSubtitleIndex | server: ${subtitleTrackLabels.size}"
+        )
+        val mediaItem = mediaItemBuilder.build()
         if (looksLikeHls(info.streamUrl, isLive)) {
             player.setMediaSource(
                 HlsMediaSource.Factory(dataSourceFactory)
@@ -520,6 +659,15 @@ fun PlayerScreen(
         resolving = false
     }
 
+    // Secili altyazi dosyasini oku; cue listesini videonun uzerine cizmek icin hazirla.
+    LaunchedEffect(selectedSubtitleIndex, subtitleOptions) {
+        val option = subtitleOptions.getOrNull(selectedSubtitleIndex)
+        subtitleCues = if (option == null) emptyList() else withContext(Dispatchers.IO) {
+            parseSubtitleFile(option.file)
+        }
+        android.util.Log.d("NotflixSub", "cue sayisi: ${subtitleCues.size} | secili: $selectedSubtitleIndex")
+    }
+
     LaunchedEffect(player) {
         var lastSave = 0L
         while (isActive) {
@@ -550,7 +698,8 @@ fun PlayerScreen(
                     saveProgress()
                 }
             }
-            delay(500)
+            // Altyazi zamanlamasi icin konumu daha sik guncelle.
+            delay(200)
         }
     }
 
@@ -728,14 +877,16 @@ fun PlayerScreen(
     // ---------------------------------------------------------------
     // Activity seviyesinde yakalanır: odak kaybolsa, kontroller gizli
     // olsa da ok tuşları, OK tuşu ve kanal tuşları her zaman çalışır.
-    DisposableEffect(isLive, channels.size, panelOpen, qualityOpen, controlsVisible) {
+    DisposableEffect(isLive, channels.size, panelOpen, qualityOpen, languageMenuOpen, subtitleMenuOpen, controlsVisible) {
         val handler: (Int) -> Boolean = { keyCode ->
             when {
-                panelOpen || qualityOpen -> when (keyCode) {
+                panelOpen || qualityOpen || languageMenuOpen || subtitleMenuOpen -> when (keyCode) {
                     android.view.KeyEvent.KEYCODE_BACK,
                     android.view.KeyEvent.KEYCODE_ESCAPE -> {
                         panelOpen = false
                         qualityOpen = false
+                        languageMenuOpen = false
+                        subtitleMenuOpen = false
                         true
                     }
                     // Panel acikken kumandanin ozel kanal tuslari yine de
@@ -916,13 +1067,15 @@ fun PlayerScreen(
                 controlsTick++
                 if (errorText != null) return@onPreviewKeyEvent false
                 // Panel acikken kumanda panelin icinde gezinir; GERI/ESC kapatir.
-                if (panelOpen || qualityOpen) {
+                if (panelOpen || qualityOpen || languageMenuOpen || subtitleMenuOpen) {
                     val native = event.nativeKeyEvent
                     if (native.keyCode == android.view.KeyEvent.KEYCODE_BACK ||
                         native.keyCode == android.view.KeyEvent.KEYCODE_ESCAPE
                     ) {
                         panelOpen = false
                         qualityOpen = false
+                        languageMenuOpen = false
+                        subtitleMenuOpen = false
                         true
                     } else {
                         false
@@ -933,7 +1086,7 @@ fun PlayerScreen(
             }
             .onKeyEvent { event ->
                 if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
-                if (panelOpen || qualityOpen) return@onKeyEvent false
+                if (panelOpen || qualityOpen || languageMenuOpen || subtitleMenuOpen) return@onKeyEvent false
                 if (errorText != null) return@onKeyEvent false
                 if (!isLive && controlsVisible) {
                     when (event.key) {
@@ -1092,6 +1245,18 @@ fun PlayerScreen(
                 }
             }
     ) {
+        val tvUi = isTvLayout()
+        val screenHeightDp = LocalConfiguration.current.screenHeightDp.toFloat().coerceAtLeast(1f)
+        val subtitleBottomFraction =
+            ((if (tvUi) 104f else 84f) / screenHeightDp).coerceIn(0.07f, 0.30f)
+        val activeSubtitleText = if (
+            !isLive && selectedSubtitleIndex >= 0 &&
+            !panelOpen && !qualityOpen && !languageMenuOpen && !subtitleMenuOpen
+        ) {
+            subtitleCues.firstOrNull { positionMs >= it.startMs && positionMs < it.endMs }?.text
+        } else {
+            null
+        }
         AndroidView(
             factory = { ctx ->
                 PlayerView(ctx).apply {
@@ -1099,12 +1264,59 @@ fun PlayerScreen(
                     resizeMode = resizeModeFor(aspect)
                     setShowBuffering(PlayerView.SHOW_BUFFERING_NEVER)
                     setBackgroundColor(android.graphics.Color.BLACK)
+                    subtitleView?.apply {
+                        setFixedTextSize(
+                            android.util.TypedValue.COMPLEX_UNIT_SP,
+                            if (tvUi) 24f else 18f
+                        )
+                        setBottomPaddingFraction(0.08f)
+                    }
                     playerView = this
                 }
             },
-            update = { view -> view.player = player },
+            update = { view ->
+                view.player = player
+                // Kontroller acikken altyazi yazisi kontrol cubugunun altinda
+                // kalmasin; ekran yuksekligine gore alt bosluk birak.
+                view.subtitleView?.setBottomPaddingFraction(
+                    if (controlsVisible) subtitleBottomFraction else 0.07f
+                )
+            },
             modifier = Modifier.fillMaxSize()
         )
+
+        if (!activeSubtitleText.isNullOrBlank()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(
+                        start = if (tvUi) 72.dp else 18.dp,
+                        end = if (tvUi) 72.dp else 18.dp,
+                        bottom = when {
+                            // Kontrol paneli ~160dp yuksekliginde; altyazi onun
+                            // ustunde kalsin, panel gizlenince alt kenara insin.
+                            controlsVisible && tvUi -> 176.dp
+                            controlsVisible -> 166.dp
+                            tvUi -> 30.dp
+                            else -> 18.dp
+                        }
+                    ),
+                contentAlignment = Alignment.BottomCenter
+            ) {
+                Text(
+                    text = activeSubtitleText,
+                    color = Color.White,
+                    fontSize = if (tvUi) 24.sp else 18.sp,
+                    lineHeight = if (tvUi) 31.sp else 24.sp,
+                    fontWeight = FontWeight.Medium,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color.Black.copy(alpha = 0.58f))
+                        .padding(horizontal = 14.dp, vertical = 7.dp)
+                )
+            }
+        }
 
         Box(
             modifier = Modifier
@@ -1391,29 +1603,41 @@ fun PlayerScreen(
                                 fontWeight = FontWeight.Medium
                             )
                             Spacer(modifier = Modifier.width(6.dp))
-                            // Film/dizide kalite otomatiktir; degistirilemez.
-                            Text(
-                                text = liveQualityLabel ?: "Otomatik",
-                                color = NotflixColors.TextSecondary,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Medium
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            ControlCircle(
-                                icon = Icons.Filled.Settings,
-                                contentDescription = "Kalite (otomatik)",
-                                size = if (isTv) 38.dp else 34.dp,
-                                filled = false,
-                                modifier = Modifier
-                                    .focusRequester(qualityControlFocus)
-                                    .focusProperties {
-                                        left = speedControlFocus
-                                        right = aspectControlFocus
-                                        up = controlsFocus
-                                        down = aspectControlFocus
-                                    },
-                                onClick = { qualityOpen = true }
-                            )
+                            Box(modifier = Modifier.focusGroup()) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    ControlCircle(
+                                        icon = Icons.Filled.Language,
+                                        contentDescription = "Dil seçimi",
+                                        size = if (isTv) 38.dp else 34.dp,
+                                        filled = false,
+                                        modifier = Modifier
+                                            .focusRequester(qualityControlFocus)
+                                            .focusProperties {
+                                                left = speedControlFocus
+                                                right = subtitleControlFocus
+                                                up = controlsFocus
+                                                down = aspectControlFocus
+                                            },
+                                        onClick = { languageMenuOpen = true }
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    ControlCircle(
+                                        icon = Icons.Filled.Subtitles,
+                                        contentDescription = "Altyazı seçimi",
+                                        size = if (isTv) 38.dp else 34.dp,
+                                        filled = subtitlesEnabled,
+                                        modifier = Modifier
+                                            .focusRequester(subtitleControlFocus)
+                                            .focusProperties {
+                                                left = qualityControlFocus
+                                                right = aspectControlFocus
+                                                up = controlsFocus
+                                                down = aspectControlFocus
+                                            },
+                                        onClick = { subtitleMenuOpen = !subtitleMenuOpen }
+                                    )
+                                }
+                            }
                             Spacer(modifier = Modifier.width(6.dp))
                         }
                         if (isLive) {
@@ -1607,6 +1831,43 @@ fun PlayerScreen(
                 autoOnly = !isLive,
                 onSelect = { applyQuality(it) },
                 onClose = { qualityOpen = false }
+            )
+        }
+
+        if (languageMenuOpen) {
+            LanguageMenu(
+                tracks = audioTracks,
+                selectedId = selectedAudioTrack,
+                onSelect = { id ->
+                    val option = audioTracks.firstOrNull { it.id == id }
+                    if (option != null) {
+                        trackSelector.setParameters(
+                            trackSelector.buildUponParameters()
+                                .clearOverridesOfType(C.TRACK_TYPE_AUDIO)
+                                .addOverride(TrackSelectionOverride(option.group.mediaTrackGroup, option.groupTrackIndex))
+                                .build()
+                        )
+                        selectedAudioTrack = id
+                    }
+                    languageMenuOpen = false
+                },
+                onClose = { languageMenuOpen = false }
+            )
+        }
+
+        if (subtitleMenuOpen) {
+            SubtitleMenu(
+                serverLabels = subtitleTrackLabels,
+                options = subtitleOptions,
+                selectedIndex = selectedSubtitleIndex,
+                warning = subtitleWarning,
+                onSelect = { index ->
+                    subtitleChoiceMade = true
+                    selectedSubtitleIndex = index
+                    subtitlesEnabled = index >= 0
+                    subtitleMenuOpen = false
+                },
+                onClose = { subtitleMenuOpen = false }
             )
         }
 
@@ -2108,45 +2369,492 @@ private fun QualityPanel(
     }
 }
 
+private data class PlaybackTrackOption(
+    val id: Int,
+    val group: Tracks.Group,
+    val groupTrackIndex: Int,
+    val label: String,
+    val language: String?,
+    val selected: Boolean
+)
+
+private fun playbackTrackOptions(tracks: Tracks, trackType: Int): List<PlaybackTrackOption> =
+    tracks.groups
+        .filter { it.type == trackType }
+        .flatMapIndexed { groupIndex, group ->
+            (0 until group.length).mapNotNull { trackIndex ->
+                if (!group.isTrackSupported(trackIndex)) return@mapNotNull null
+                val format = group.getTrackFormat(trackIndex)
+                PlaybackTrackOption(
+                    id = groupIndex * 1000 + trackIndex,
+                    group = group,
+                    groupTrackIndex = trackIndex,
+                    label = playbackTrackLabel(format, trackType, trackIndex),
+                    language = format.language,
+                    selected = group.isTrackSelected(trackIndex)
+                )
+            }
+        }
+
+private fun playbackTrackLabel(format: Format, trackType: Int, index: Int): String {
+    val languageName = format.language
+        ?.takeIf { it.isNotBlank() }
+        ?.let { languageLabel(it) }
+        ?.takeIf { it != "Dil belirtilmemiş" }
+    val prettyLabel = format.label?.trim()?.takeIf { it.isNotBlank() }?.let { prettyTrackName(it) }
+    val channels = format.channelCount.takeIf { it > 0 }?.let { "${it}ch" }
+    val parts = mutableListOf<String>()
+    if (!prettyLabel.isNullOrBlank()) parts += prettyLabel
+    if (languageName != null && parts.none { it.contains(languageName, ignoreCase = true) }) {
+        parts += languageName
+    }
+    if (trackType == C.TRACK_TYPE_AUDIO && channels != null) parts += channels
+    if (parts.isEmpty()) {
+        parts += if (trackType == C.TRACK_TYPE_AUDIO) "Ses ${index + 1}" else "Altyazı ${index + 1}"
+    }
+    return parts.joinToString(" · ")
+}
+
+// "audio", "Ses", "Default" gibi anlamsiz etiketleri gizle; dil adlarini Turkce yaz.
+private fun prettyTrackName(value: String): String? {
+    val key = value.trim().lowercase()
+    if (key in setOf(
+            "audio", "ses", "default", "varsayılan", "varsayilan", "track", "parça", "parca",
+            "und", "unknown", "bilinmiyor", "original", "orijinal"
+        )
+    ) return null
+    if (Regex("^(audio|ses|track|parça|parca)\\s*\\d*$").matches(key)) return null
+    val translated = value
+        .replace("Turkish", "Türkçe", ignoreCase = true)
+        .replace("English", "İngilizce", ignoreCase = true)
+        .replace("German", "Almanca", ignoreCase = true)
+        .replace("French", "Fransızca", ignoreCase = true)
+        .replace("Spanish", "İspanyolca", ignoreCase = true)
+        .replace("Italian", "İtalyanca", ignoreCase = true)
+        .replace("Russian", "Rusça", ignoreCase = true)
+        .replace("Arabic", "Arapça", ignoreCase = true)
+        .replace(
+            Regex("(?i)\\b(audio|ses|track|parça|parca|default|varsayılan|varsayilan)\\b\\s*\\d*"),
+            " "
+        )
+        .replace(Regex("\\s+"), " ")
+        .trim(' ', '-', '·', ',')
+    if (translated.isBlank()) return null
+    return when (languageCodeFromLabel(translated.lowercase())) {
+        "tr" -> "Türkçe"
+        "en" -> "İngilizce"
+        "de" -> "Almanca"
+        "fr" -> "Fransızca"
+        else -> translated
+    }
+}
+
+private fun languageLabel(code: String): String = when (code.lowercase().substringBefore('-')) {
+    "tr" -> "Türkçe"
+    "en" -> "İngilizce"
+    "ar" -> "Arapça"
+    "de" -> "Almanca"
+    "es" -> "İspanyolca"
+    "fr" -> "Fransızca"
+    "it" -> "İtalyanca"
+    "ja" -> "Japonca"
+    "ko" -> "Korece"
+    "ru" -> "Rusça"
+    "zh" -> "Çince"
+    "und" -> "Dil belirtilmemiş"
+    else -> code.uppercase()
+}
+
+private fun languageCodeFromLabel(label: String): String = when (label.lowercase()) {
+    "turkish", "türkçe", "turkce", "tr", "tr--forced--" -> "tr"
+    "english", "english [cc]", "ingilizce", "en" -> "en"
+    "german", "almanca", "deutsch", "de" -> "de"
+    "french", "fransızca", "francais", "fr" -> "fr"
+    else -> "und"
+}
+
+private fun shortLanguageTag(label: String, language: String? = null): String {
+    val code = language?.trim()?.substringBefore('-')?.lowercase()
+        ?.takeIf { it.length == 2 && it.all { char -> char in 'a'..'z' } }
+        ?: languageCodeFromLabel(label)
+    return when (code) {
+        "tr" -> "TR"
+        "en" -> "EN"
+        "de" -> "DE"
+        "fr" -> "FR"
+        "es" -> "ES"
+        "it" -> "IT"
+        "ja" -> "JA"
+        "ko" -> "KO"
+        "ru" -> "RU"
+        "ar" -> "AR"
+        "zh" -> "ZH"
+        else -> ""
+    }
+}
+
+private fun trackLanguageTag(option: PlaybackTrackOption, fallback: String = ""): String =
+    shortLanguageTag(option.label, option.language).ifBlank { fallback }
+
+private fun prettySubtitleLabel(label: String, language: String?): String {
+    val clean = label.trim()
+    if (clean.isEmpty()) {
+        val code = language?.takeIf { it.isNotBlank() } ?: "und"
+        return if (code == "und") "Altyazı" else languageLabel(code)
+    }
+    val key = clean.lowercase()
+        .replace("\u0307", "")
+        .replace('ı', 'i').replace('ç', 'c').replace('ğ', 'g')
+        .replace('ö', 'o').replace('ş', 's').replace('ü', 'u')
+    // "SDH"/"CC" kullaniciya bir sey anlatmiyor; anlasilir Turkce yaz.
+    if (key == "audio" || key == "ses" || key == "subtitle" || key == "altyazi") {
+        return language?.takeIf { it.isNotBlank() && it != "und" }
+            ?.let { languageLabel(it) } ?: "Altyazı"
+    }
+    if (key == "sdh" || key == "cc" || key == "closed captions" || key == "closed caption") {
+        return "İşitme Engelliler Altyazısı"
+    }
+    if (key.contains("sdh")) {
+        val base = when {
+            key.contains("turk") || language?.lowercase()?.startsWith("tr") == true -> "Türkçe"
+            !language.isNullOrBlank() -> languageLabel(language)
+            key.contains("english") || key.contains("ingiliz") -> "İngilizce"
+            else -> ""
+        }
+        return if (base.isBlank()) "İşitme Engelliler Altyazısı"
+        else "$base · İşitme Engelliler"
+    }
+    return when (key) {
+        "forced", "zorunlu" -> "Zorunlu Altyazı"
+        "english", "ingilizce" -> "İngilizce"
+        "turkish", "turkce" -> "Türkçe"
+        "german", "almanca", "deutsch" -> "Almanca"
+        "french", "francais", "fransizca" -> "Fransızca"
+        "spanish", "ispanyolca" -> "İspanyolca"
+        "italian", "italyanca" -> "İtalyanca"
+        "russian", "rusca" -> "Rusça"
+        "arabic", "arapca" -> "Arapça"
+        else -> clean
+    }
+}
+
+private fun shortTrackLabel(label: String): String =
+    label.substringBefore(" · ").take(12)
+
+private data class SubtitleOption(
+    val label: String,
+    val language: String?,
+    val file: File
+)
+
+private data class SubtitleCue(
+    val startMs: Long,
+    val endMs: Long,
+    val text: String
+)
+
+// Indirilen VTT/SRT dosyasini basit cue listesine cevirir.
+private fun parseSubtitleFile(file: File): List<SubtitleCue> = runCatching {
+    val raw = file.readText(Charsets.UTF_8)
+        .removePrefix("\uFEFF")
+        .replace("\r\n", "\n")
+        .replace('\r', '\n')
+    raw.split(Regex("\n{2,}")).mapNotNull { block ->
+        val lines = block.trim().split('\n')
+        val timeIndex = lines.indexOfFirst { it.contains("-->") }
+        if (timeIndex < 0) return@mapNotNull null
+        val times = lines[timeIndex].split("-->")
+        val startMs = parseSubtitleTime(times.getOrNull(0)) ?: return@mapNotNull null
+        val endMs = parseSubtitleTime(times.getOrNull(1)) ?: return@mapNotNull null
+        val text = lines.drop(timeIndex + 1).joinToString("\n")
+            .replace(Regex("<[^>]+>"), "")
+            .trim()
+        if (text.isEmpty() || endMs <= startMs) null else SubtitleCue(startMs, endMs, text)
+    }.sortedBy { it.startMs }
+}.getOrDefault(emptyList())
+
+private fun parseSubtitleTime(value: String?): Long? {
+    val clean = value?.trim()?.substringBefore(' ')?.replace(',', '.') ?: return null
+    val parts = clean.split(':')
+    return when (parts.size) {
+        3 -> {
+            val hours = parts[0].toLongOrNull() ?: return null
+            val minutes = parts[1].toLongOrNull() ?: return null
+            val seconds = parts[2].toDoubleOrNull() ?: return null
+            (hours * 3600 + minutes * 60) * 1000 + (seconds * 1000).toLong()
+        }
+        2 -> {
+            val minutes = parts[0].toLongOrNull() ?: return null
+            val seconds = parts[1].toDoubleOrNull() ?: return null
+            minutes * 60 * 1000 + (seconds * 1000).toLong()
+        }
+        else -> null
+    }
+}
+
+private fun resolveSubtitleSource(source: String, playerBase: String): String = when {
+    source.startsWith("https://", true) || source.startsWith("http://", true) -> source
+    source.startsWith("//") -> "https:$source"
+    source.startsWith("/") -> playerBase.trimEnd('/') + source
+    playerBase.isNotBlank() -> playerBase.trimEnd('/') + "/" + source.trimStart('/')
+    else -> source
+}
+
+@Composable
+private fun LanguageMenu(
+    tracks: List<PlaybackTrackOption>,
+    selectedId: Int,
+    onSelect: (Int) -> Unit,
+    onClose: () -> Unit
+) {
+    SmallTrackMenu(
+        title = "SES DİLİ",
+        rows = tracks.map {
+            TrackMenuRow(it.id, it.label, trackLanguageTag(it), it.id == selectedId)
+        },
+        emptyText = "Bu yayında ayrı dil seçeneği yok.",
+        onSelect = onSelect,
+        onClose = onClose
+    )
+}
+
+@Composable
+private fun SubtitleMenu(
+    serverLabels: List<String>,
+    options: List<SubtitleOption>,
+    selectedIndex: Int,
+    warning: String?,
+    onSelect: (Int) -> Unit,
+    onClose: () -> Unit
+) {
+    val rows = buildList {
+        add(TrackMenuRow(-1, "Kapalı", "—", selectedIndex < 0))
+        options.forEachIndexed { index, option ->
+            add(
+                TrackMenuRow(
+                    id = index,
+                    label = prettySubtitleLabel(option.label, option.language),
+                    language = shortLanguageTag(option.label, option.language).ifBlank { "CC" },
+                    selected = index == selectedIndex
+                )
+            )
+        }
+    }
+    val detail = when {
+        options.isNotEmpty() -> null
+        warning != null -> warning
+        serverLabels.isNotEmpty() ->
+            "Kaynakta ${serverLabels.distinct().joinToString(" · ")} altyazısı var ancak dosya indirilemedi."
+        else -> "Bu içerik için altyazı seçeneği bulunmuyor."
+    }
+    SmallTrackMenu("ALTYAZILAR", rows, detail, onSelect, onClose)
+}
+
+private data class TrackMenuRow(val id: Int, val label: String, val language: String, val selected: Boolean)
+
+@Composable
+private fun SmallTrackMenu(
+    title: String,
+    rows: List<TrackMenuRow>,
+    emptyText: String?,
+    onSelect: (Int) -> Unit,
+    onClose: () -> Unit
+) {
+    val firstRow = remember { FocusRequester() }
+    LaunchedEffect(title, rows.size) {
+        delay(90)
+        runCatching { firstRow.requestFocus() }
+    }
+    val optionCount = rows.count { it.id >= 0 }
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.40f))
+            .clickable(onClick = onClose),
+        contentAlignment = Alignment.BottomEnd
+    ) {
+        Column(
+            modifier = Modifier
+                .widthIn(min = 270.dp, max = 350.dp)
+                .padding(
+                    end = if (isTvLayout()) 26.dp else 18.dp,
+                    bottom = if (isTvLayout()) 78.dp else 58.dp
+                )
+                .clip(RoundedCornerShape(14.dp))
+                .background(Color(0xF7161619))
+                .border(1.dp, Color.White.copy(alpha = 0.10f), RoundedCornerShape(14.dp))
+                .clickable(enabled = false) {}
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 18.dp, end = 16.dp, top = 14.dp, bottom = 11.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = title,
+                    color = Color.White,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.8.sp,
+                    modifier = Modifier.weight(1f)
+                )
+                if (optionCount > 0) {
+                    Text(
+                        text = "$optionCount seçenek",
+                        color = NotflixColors.TextMuted,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(1.dp)
+                    .background(Color.White.copy(alpha = 0.07f))
+            )
+            Column(
+                modifier = Modifier
+                    .heightIn(max = 360.dp)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 6.dp, vertical = 6.dp)
+            ) {
+                rows.forEachIndexed { index, row ->
+                    QualityRow(
+                        modifier = if (index == 0) Modifier.focusRequester(firstRow) else Modifier,
+                        label = row.label,
+                        selected = row.selected,
+                        badge = row.language,
+                        onClick = { onSelect(row.id) }
+                    )
+                }
+                if (rows.isEmpty()) {
+                    Text(
+                        text = emptyText ?: "Bu yayında seçenek yok.",
+                        color = NotflixColors.TextMuted,
+                        fontSize = 12.sp,
+                        lineHeight = 17.sp,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp)
+                    )
+                }
+            }
+            if (!emptyText.isNullOrBlank() && rows.size <= 1) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(1.dp)
+                        .background(Color.White.copy(alpha = 0.06f))
+                )
+                Text(
+                    text = emptyText,
+                    color = NotflixColors.TextMuted,
+                    fontSize = 11.sp,
+                    lineHeight = 16.sp,
+                    modifier = Modifier.padding(horizontal = 18.dp, vertical = 11.dp)
+                )
+            }
+        }
+    }
+}
+
 @Composable
 private fun QualityRow(
     label: String,
     selected: Boolean,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onMoveFocus: ((FocusRequester, Int) -> Unit)? = null,
+    trailing: String = "",
+    badge: String = ""
 ) {
+    val rowFocus = remember { FocusRequester() }
     var focused by remember { mutableStateOf(false) }
+    val shape = RoundedCornerShape(9.dp)
     Row(
         modifier = modifier
+            .focusRequester(rowFocus)
+            .onPreviewKeyEvent { event ->
+                if (event.type != KeyEventType.KeyDown || onMoveFocus == null) false
+                else when (event.key) {
+                    Key.DirectionDown -> { onMoveFocus(rowFocus, 1); true }
+                    Key.DirectionUp -> { onMoveFocus(rowFocus, -1); true }
+                    else -> false
+                }
+            }
             .fillMaxWidth()
-            .padding(horizontal = 8.dp, vertical = 2.dp)
-            .clip(RoundedCornerShape(8.dp))
+            .padding(horizontal = 4.dp, vertical = 1.dp)
+            .clip(shape)
             .background(
                 when {
-                    focused -> Color.White.copy(alpha = 0.10f)
-                    selected -> NotflixColors.Accent.copy(alpha = 0.18f)
+                    focused -> Color.White.copy(alpha = 0.12f)
+                    selected -> NotflixColors.Accent.copy(alpha = 0.16f)
                     else -> Color.Transparent
                 }
             )
+            .border(
+                width = 1.dp,
+                color = if (focused) Color.White.copy(alpha = 0.20f) else Color.Transparent,
+                shape = shape
+            )
             .onFocusChanged { focused = it.isFocused }
             .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 10.dp),
+            .padding(start = 10.dp, end = 12.dp, top = 9.dp, bottom = 9.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        if (badge.isNotBlank()) {
+            Box(
+                modifier = Modifier
+                    .widthIn(min = 30.dp)
+                    .height(22.dp)
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(
+                        if (selected || focused) NotflixColors.Accent.copy(alpha = 0.22f)
+                        else Color.White.copy(alpha = 0.07f)
+                    )
+                    .padding(horizontal = 6.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = badge,
+                    color = if (selected || focused) NotflixColors.AccentSoft else NotflixColors.TextMuted,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.6.sp,
+                    maxLines = 1
+                )
+            }
+            Spacer(modifier = Modifier.width(10.dp))
+        }
         Text(
             text = label,
             color = if (selected || focused) Color.White else NotflixColors.TextSecondary,
-            fontSize = 13.sp,
+            fontSize = 14.sp,
+            lineHeight = 18.sp,
             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f)
         )
-        if (selected) {
+        if (trailing.isNotBlank()) {
             Text(
-                text = "✓",
-                color = NotflixColors.AccentSoft,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Bold
+                text = trailing,
+                color = NotflixColors.TextMuted,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(start = 8.dp)
             )
+        }
+        Spacer(modifier = Modifier.width(8.dp))
+        Box(modifier = Modifier.width(16.dp), contentAlignment = Alignment.Center) {
+            if (selected) {
+                Text(
+                    text = "✓",
+                    color = NotflixColors.AccentSoft,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
         }
     }
 }

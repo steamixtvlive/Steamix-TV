@@ -1,6 +1,6 @@
 {
-  "versionCode": 21,
-  "versionName": "1.0.17",
+  "versionCode": 23,
+  "versionName": "1.0.19",
   "apkUrl": "https://github.com/steamixtvlive/Steamix-TV/releases/latest/download/notflix.apk",
-  "notes": ""
+  "notes": "• Alt yazı desteği eklenmiştir.\n• Google Play'in zararlı algılama uyarısı tamamen algoritmik bir yanlış pozitiftir. Uygulama zararsızdır, gönül rahatlığıyla kullanabilirsiniz.\n• Bu sürümden sonra sık güncelleme gelmeyecek."
 }
