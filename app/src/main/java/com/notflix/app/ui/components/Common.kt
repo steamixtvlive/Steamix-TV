@@ -93,6 +93,7 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.notflix.app.data.LiveChannel
 import com.notflix.app.data.MediaCard
+import com.notflix.app.data.MediaMetaStore
 import com.notflix.app.data.MediaType
 import com.notflix.app.ui.brand.NotflixWordmark
 import com.notflix.app.ui.theme.NotflixColors
@@ -449,9 +450,11 @@ fun NotflixButton(
     ) {
         if (icon != null) {
             Icon(icon, contentDescription = null, tint = fg, modifier = Modifier.size(19.dp))
-            Spacer(modifier = Modifier.width(8.dp))
+            if (text.isNotBlank()) Spacer(modifier = Modifier.width(8.dp))
         }
-        Text(text = text, color = fg, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, maxLines = 1)
+        if (text.isNotBlank()) {
+            Text(text = text, color = fg, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, maxLines = 1)
+        }
     }
 }
 
@@ -463,6 +466,8 @@ fun PosterCard(
     width: Dp? = if (isTvLayout()) 166.dp else 132.dp
 ) {
     var focused by remember { mutableStateOf(false) }
+    // Gercek dil/sezon bilgisi yalnizca daha once kesfedildiyse gosterilir.
+    val meta = MediaMetaStore.metaFor(card.url)
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(if (pressed) 0.975f else 1f, label = "posterScale")
@@ -586,6 +591,36 @@ fun PosterCard(
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold
                     )
+                }
+            }
+            if (meta != null) {
+                val metaLabels = buildList {
+                    if (meta.turkishDubbing) add("TR Dublaj")
+                    else if (meta.hasSubtitles) add("Altyazılı")
+                    if (meta.seasonCount > 0) add("${meta.seasonCount} Sezon")
+                }
+                if (metaLabels.isNotEmpty()) {
+                    Column(
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(7.dp),
+                        horizontalAlignment = Alignment.End,
+                        verticalArrangement = Arrangement.spacedBy(3.dp)
+                    ) {
+                        metaLabels.forEach { label ->
+                            Text(
+                                text = label,
+                                color = Color.White,
+                                fontSize = 8.5.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(Color.Black.copy(alpha = 0.74f))
+                                    .padding(horizontal = 5.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
                 }
             }
             if (focused) {

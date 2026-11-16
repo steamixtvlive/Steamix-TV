@@ -49,21 +49,21 @@ import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Subtitles
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FullscreenExit
+import androidx.compose.material.icons.filled.Forward10
 import androidx.compose.material.icons.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.filled.LiveTv
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Replay10
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.VolumeOff
 import androidx.compose.material.icons.filled.VolumeUp
-import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
@@ -120,8 +120,10 @@ import androidx.media3.common.Player
 import androidx.media3.common.Tracks
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.hls.HlsMediaSource
+import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.common.TrackSelectionOverride
@@ -229,12 +231,24 @@ fun PlayerScreen(
         DefaultDataSource.Factory(context, httpFactory)
     }
     val trackSelector = remember { DefaultTrackSelector(context) }
+    // Canli TV cozucu tercihi: donanimsal (varsayilan) veya yazilimsal.
+    // Film/dizide Media3'un otomatik secimi korunur.
+    val decoderMode = if (isLive) app.settings.liveDecoder else "hw"
+    val renderersFactory = remember(decoderMode, context) {
+        DefaultRenderersFactory(context).apply {
+            setEnableDecoderFallback(true)
+            if (decoderMode == "sw") {
+                setMediaCodecSelector(MediaCodecSelector.PREFER_SOFTWARE)
+            }
+        }
+    }
     var resolvedPlayback by remember(pageUrl, liveUrl) { mutableStateOf<PlayInfo?>(null) }
     var subtitleTrackLabels by remember(pageUrl, liveUrl) { mutableStateOf<List<String>>(emptyList()) }
     var subtitleWarning by remember(pageUrl, liveUrl) { mutableStateOf<String?>(null) }
     val player = remember {
         ExoPlayer.Builder(context)
             .setTrackSelector(trackSelector)
+            .setRenderersFactory(renderersFactory)
             .setSeekBackIncrementMs(10_000)
             .setSeekForwardIncrementMs(10_000)
             .build()
@@ -263,6 +277,10 @@ fun PlayerScreen(
     // Kumandada her tus hareketi bu sayaci artirir (kontrollerin gizlenme
     // sayacini sifirlar).
     var controlsTick by remember { mutableIntStateOf(0) }
+    // Kontroller gizliyken sol/sag ok ile yapilan 10 sn sarma islemini
+    // ekranin ortasinda kisa sure gosteren katman.
+    var centerSeekHint by remember { mutableStateOf<String?>(null) }
+    var centerSeekTick by remember { mutableIntStateOf(0) }
     var qualityOpen by remember { mutableStateOf(false) }
     var languageMenuOpen by remember { mutableStateOf(false) }
     var subtitleMenuOpen by remember { mutableStateOf(false) }
@@ -306,6 +324,12 @@ fun PlayerScreen(
         if (hintText != null) {
             delay(2_600)
             hintText = null
+        }
+    }
+    LaunchedEffect(centerSeekTick) {
+        if (centerSeekHint != null) {
+            delay(1_100)
+            centerSeekHint = null
         }
     }
     var rootBoxFocused by remember { mutableStateOf(false) }
@@ -548,9 +572,18 @@ fun PlayerScreen(
                         else -> alt
                     }
                 }
-                else -> current?.let { app.live.resolveStream(it.url) }
-                    ?: current?.stream?.takeIf { it.startsWith("http") }
-                    ?: liveUrl
+                else -> {
+                    val channel = current
+                    when {
+                        channel == null -> liveUrl
+                        // Dogrudan m3u8 adresi verilen kanallar (TRT, NOW gibi
+                        // public yayinlar) cozucuye sorulmadan acilir.
+                        channel.url.contains(".m3u8", ignoreCase = true) -> channel.url
+                        else -> app.live.resolveStream(channel.url)
+                            ?: channel.stream.takeIf { it.startsWith("http") }
+                            ?: liveUrl
+                    }
+                }
             }
             stream?.takeIf { it.startsWith("http") }?.let {
                 PlayInfo(streamUrl = it, title = displayTitle, poster = "", referer = "")
@@ -827,15 +860,26 @@ fun PlayerScreen(
 
     fun seekBy(delta: Long) {
         if (isLive) return
-        val target = (player.currentPosition + delta).coerceIn(0L, player.duration.coerceAtLeast(0L))
+        val current = player.currentPosition.coerceAtLeast(0L)
+        val total = player.duration
+        val target = if (total > 0L && total != C.TIME_UNSET) {
+            (current + delta).coerceIn(0L, total)
+        } else {
+            (current + delta).coerceAtLeast(0L)
+        }
         player.seekTo(target)
         positionMs = target
     }
 
+    fun flashCenterSeek(action: String) {
+        centerSeekHint = action
+        centerSeekTick++
+    }
 
     fun seekWithStep(direction: Int) {
         seekBy(seekStepSeconds * 1_000L * direction)
         hintText = "${if (direction < 0) "−" else "+"}${seekStepSeconds} sn"
+        flashCenterSeek(if (direction < 0) "rewind" else "forward")
     }
 
     fun zap(delta: Int) {
@@ -949,9 +993,16 @@ fun PlayerScreen(
                         }
                     }
                     android.view.KeyEvent.KEYCODE_DPAD_RIGHT -> {
-                        if (!controlsVisible && isLive && channels.size > 1) {
-                            openChannelPanel()
-                            true
+                        if (!controlsVisible) {
+                            if (isLive && channels.size > 1) {
+                                openChannelPanel()
+                                true
+                            } else if (!isLive) {
+                                seekWithStep(1)
+                                true
+                            } else {
+                                false
+                            }
                         } else {
                             false
                         }
@@ -961,7 +1012,13 @@ fun PlayerScreen(
                     android.view.KeyEvent.KEYCODE_NUMPAD_ENTER,
                     android.view.KeyEvent.KEYCODE_SPACE -> {
                         if (!controlsVisible) {
-                            controlsVisible = true
+                            if (isLive) {
+                                controlsVisible = true
+                            } else {
+                                // Kontroller gizliyken OK: oynat/duraklat.
+                                togglePlay()
+                                flashCenterSeek("playpause")
+                            }
                             true
                         } else {
                             false
@@ -969,16 +1026,39 @@ fun PlayerScreen(
                     }
                     android.view.KeyEvent.KEYCODE_DPAD_LEFT -> {
                         if (!controlsVisible) {
-                            controlsVisible = true
-                            true
+                            if (!isLive) {
+                                // Kontroller gizliyken sol ok: 10 sn geri.
+                                seekWithStep(-1)
+                                true
+                            } else {
+                                controlsVisible = true
+                                true
+                            }
                         } else {
                             false
                         }
                     }
                     // Medya tuslari: hizli sarma / geri sarma (kumanda ve klavye)
+                    android.view.KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> {
+                        if (!isLive) {
+                            seekWithStep(1)
+                            true
+                        } else {
+                            false
+                        }
+                    }
+                    android.view.KeyEvent.KEYCODE_MEDIA_REWIND -> {
+                        if (!isLive) {
+                            seekWithStep(-1)
+                            true
+                        } else {
+                            false
+                        }
+                    }
                     android.view.KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
                     android.view.KeyEvent.KEYCODE_MEDIA_PLAY -> {
                         togglePlay()
+                        flashCenterSeek("playpause")
                         true
                     }
                     android.view.KeyEvent.KEYCODE_MEDIA_STOP -> {
@@ -1212,6 +1292,10 @@ fun PlayerScreen(
                         } else if (!controlsVisible && isLive && channels.size > 1) {
                             openChannelPanel()
                             true
+                        } else if (!controlsVisible && !isLive) {
+                            // Kontroller gizliyken sag ok: 10 sn ileri.
+                            seekWithStep(1)
+                            true
                         } else false
                     }
                     // Canli TV'de kontroller OK (merkez) tusu ile acilir;
@@ -1225,6 +1309,7 @@ fun PlayerScreen(
                                 runCatching { focusManager.moveFocus(FocusDirection.Down) }
                             } else {
                                 togglePlay()
+                                flashCenterSeek("playpause")
                             }
                             true
                         } else {
@@ -1233,9 +1318,14 @@ fun PlayerScreen(
                     }
                     Key.DirectionLeft -> {
                         if (!controlsVisible) {
-                            controlsVisible = true
-                            runCatching { focusRequester.requestFocus() }
-                            runCatching { focusManager.moveFocus(FocusDirection.Down) }
+                            if (!isLive) {
+                                // Kontroller gizliyken sol ok: 10 sn geri.
+                                seekWithStep(-1)
+                            } else {
+                                controlsVisible = true
+                                runCatching { focusRequester.requestFocus() }
+                                runCatching { focusManager.moveFocus(FocusDirection.Down) }
+                            }
                             true
                         } else {
                             false
@@ -1322,7 +1412,15 @@ fun PlayerScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .pointerInput(panelOpen) {
-                    detectTapGestures { if (!panelOpen) controlsVisible = !controlsVisible }
+                    detectTapGestures { offset ->
+                        if (panelOpen) return@detectTapGestures
+                        val half = size.width / 2
+                        if (offset.x < half) {
+                            seekWithStep(-1)
+                        } else {
+                            seekWithStep(1)
+                        }
+                    }
                 }
         )
 
@@ -1511,18 +1609,24 @@ fun PlayerScreen(
                                 )
                             }
                         } else {
-                            SeekCircle(
-                                label = "−$seekStepSeconds",
+                            // VOD sarma dugmeleri, merkezdeki 10 sn geri/ileri
+                            // katmaniyla ayni ikon ve gorunume sahip.
+                            ControlCircle(
+                                icon = Icons.Filled.Replay10,
+                                contentDescription = "10 saniye geri",
                                 size = if (isTv) 44.dp else 38.dp,
+                                filled = false,
                                 modifier = Modifier
                                     .focusRequester(rewindControlFocus)
                                     .focusProperties { left = controlsFocus; right = forwardControlFocus },
                                 onClick = { seekWithStep(-1) }
                             )
                             Spacer(modifier = Modifier.width(6.dp))
-                            SeekCircle(
-                                label = "+$seekStepSeconds",
+                            ControlCircle(
+                                icon = Icons.Filled.Forward10,
+                                contentDescription = "10 saniye ileri",
                                 size = if (isTv) 44.dp else 38.dp,
+                                filled = false,
                                 modifier = Modifier
                                     .focusRequester(forwardControlFocus)
                                     .focusProperties {
@@ -1680,6 +1784,51 @@ fun PlayerScreen(
         }
 
         // Canli yayinda cozunurluk bilgisi kontrol barinin saginda gosterilir.
+
+        // Ekranin ortasindaki 10 sn geri / oynat-duraklat / 10 sn ileri
+        // katmani. Dugmeler odak zincirine GIRMEZ; kumanda ile gezinme
+        // asagidaki kontrol cubugunda kalir. Kontroller gizliyken sol/sag
+        // ok ile sarma yapilinca bu katman kisa sure parlar.
+        AnimatedVisibility(
+            visible = !inPipMode && !isLive && !showError && !showLoading &&
+                (controlsVisible || centerSeekHint != null),
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier.align(Alignment.Center)
+        ) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(if (isTv) 30.dp else 20.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                CenterSeekButton(
+                    icon = Icons.Filled.Replay10,
+                    contentDescription = "10 saniye geri",
+                    size = if (isTv) 64.dp else 52.dp,
+                    filled = false,
+                    highlighted = centerSeekHint == "rewind",
+                    onClick = { seekWithStep(-1) }
+                )
+                CenterSeekButton(
+                    icon = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                    contentDescription = if (isPlaying) "Duraklat" else "Oynat",
+                    size = if (isTv) 82.dp else 66.dp,
+                    filled = true,
+                    highlighted = centerSeekHint == "playpause",
+                    onClick = {
+                        togglePlay()
+                        flashCenterSeek("playpause")
+                    }
+                )
+                CenterSeekButton(
+                    icon = Icons.Filled.Forward10,
+                    contentDescription = "10 saniye ileri",
+                    size = if (isTv) 64.dp else 52.dp,
+                    filled = false,
+                    highlighted = centerSeekHint == "forward",
+                    onClick = { seekWithStep(1) }
+                )
+            }
+        }
 
         // Sonraki bolum geri sayimi (dizilerde otomatik gecis).
         AnimatedVisibility(
@@ -2026,7 +2175,6 @@ private fun ChannelPanel(
     onClose: () -> Unit
 ) {
     val tv = LocalConfiguration.current.smallestScreenWidthDp >= 600
-    var query by remember { mutableStateOf("") }
     // Panel acildiginda su an oynayan kanalin grubu secili olsun; boyce
     // listede "Tumü" ilk sirada bekleyip ilk Ulusal kanali acilmaz.
     val currentGroup = channels.getOrNull(currentIndex)?.group?.takeIf { it.isNotBlank() } ?: "Tümü"
@@ -2036,7 +2184,6 @@ private fun ChannelPanel(
     LaunchedEffect(currentGroup) {
         if (!groupPinned) group = currentGroup
     }
-    val focusManager = LocalFocusManager.current
     val groups = remember(channels) {
         val preferred = listOf(
             "Ulusal", "Haber", "Spor", "Sinema & Dizi", "Belgesel",
@@ -2047,24 +2194,22 @@ private fun ChannelPanel(
         preferred.filter { it in present } +
             present.filter { it !in preferred }.sorted() + listOf("Tümü")
     }
-    val needle = remember(query) { panelSearchKey(query.trim()) }
-    val filtered = remember(channels, group, needle) {
+    val filtered = remember(channels, group) {
         channels.withIndex().filter { entry ->
-            val inGroup = group == "Tümü" || entry.value.group == group
-            inGroup && (needle.length < 2 || panelSearchKey(entry.value.name).contains(needle))
+            group == "Tümü" || entry.value.group == group
         }
     }
     val selectedPos = filtered.indexOfFirst { it.index == currentIndex }.coerceAtLeast(0)
     // Odak her zaman bir kanalda olsun: oynayan kanal listede yoksa ilk oge.
     val focusPos = if (selectedPos in filtered.indices) selectedPos else 0
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = selectedPos)
-    LaunchedEffect(selectedPos, group, needle) {
+    LaunchedEffect(selectedPos, group) {
         runCatching { listState.scrollToItem(selectedPos) }
     }
-    // Panel acildiginda odak dogrudan kanal listesinde olsun (arama alaninda degil),
+    // Panel acildiginda odak dogrudan kanal listesinde olsun,
     // boylece kumanda ile kanallar arasinda gezinebilirsin. Ogeler LazyColumn
     // icinde geci olusabildigi icin birkac kez denenir.
-    LaunchedEffect(filtered.size, group, needle) {
+    LaunchedEffect(filtered.size, group) {
         repeat(5) {
             delay(120)
             runCatching { focusRequester.requestFocus() }
@@ -2112,52 +2257,7 @@ private fun ChannelPanel(
                     onClick = onClose
                 )
             }
-            OutlinedTextField(
-                value = query,
-                onValueChange = { query = it },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp)
-                    .onPreviewKeyEvent { event ->
-                        if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
-                        when (event.key) {
-                            // Asagi tusu direkt kanal listesine gecsin; arama
-                            // alaninda kalmak kumandayi kilitler.
-                            Key.DirectionDown -> {
-                                if (filtered.isNotEmpty()) {
-                                    runCatching { focusRequester.requestFocus() }
-                                }
-                                true
-                            }
-                            Key.DirectionUp -> focusManager.moveFocus(FocusDirection.Up)
-                            else -> false
-                        }
-                    },
-                placeholder = {
-                    Text("Kanal ara", color = NotflixColors.TextMuted, fontSize = 12.sp)
-                },
-                leadingIcon = {
-                    Icon(
-                        Icons.Outlined.Search,
-                        contentDescription = null,
-                        tint = NotflixColors.TextMuted,
-                        modifier = Modifier.size(17.dp)
-                    )
-                },
-                singleLine = true,
-                shape = RoundedCornerShape(9.dp),
-                textStyle = MaterialTheme.typography.bodySmall,
-                colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = NotflixColors.Accent,
-                    unfocusedBorderColor = Color.White.copy(alpha = 0.10f),
-                    focusedTextColor = Color.White,
-                    unfocusedTextColor = Color.White,
-                    cursorColor = NotflixColors.Accent,
-                    focusedContainerColor = Color.White.copy(alpha = 0.05f),
-                    unfocusedContainerColor = Color.White.copy(alpha = 0.05f)
-                )
-            )
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(4.dp))
             LazyRow(
                 contentPadding = PaddingValues(horizontal = 12.dp),
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -2976,6 +3076,50 @@ private fun ControlCircle(
     }
 }
 
+/**
+ * Oynatici ekraninin ortasindaki 10 sn geri / oynat-duraklat / 10 sn ileri
+ * dugmeleri. Bilincli olarak ODAKLANAMAZ (focusable/clickable yoktur);
+ * boylece kumanda ile gezinme mevcut kontrol cubugunda kalir ve odak
+ * sistemi bozulmaz. Dokunmatik ekranda pointerInput ile calisir.
+ */
+@Composable
+private fun CenterSeekButton(
+    icon: ImageVector,
+    contentDescription: String,
+    size: Dp,
+    filled: Boolean,
+    highlighted: Boolean,
+    onClick: () -> Unit
+) {
+    val bg = when {
+        highlighted -> NotflixColors.Accent.copy(alpha = 0.85f)
+        filled -> Color.White
+        else -> Color.Black.copy(alpha = 0.45f)
+    }
+    Box(
+        modifier = Modifier
+            .size(size)
+            .clip(CircleShape)
+            .background(bg)
+            .border(
+                width = if (highlighted) 2.dp else 1.dp,
+                color = if (highlighted) Color.White else Color.White.copy(alpha = 0.24f),
+                shape = CircleShape
+            )
+            .pointerInput(Unit) {
+                detectTapGestures(onTap = { onClick() })
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = contentDescription,
+            tint = if (filled && !highlighted) Color.Black else Color.White,
+            modifier = Modifier.size(size * 0.52f)
+        )
+    }
+}
+
 @Composable
 private fun SeekCircle(
     label: String,
@@ -2985,19 +3129,20 @@ private fun SeekCircle(
 ) {
     var focused by remember { mutableStateOf(false) }
     val tv = isTvLayout()
-    val focusColor = if (tv) NotflixColors.AccentSoft else Color.White
+    val baseColor = Color(0xFFE50914) // kirmizi
+    val focusColor = Color.White
     Box(
         modifier = modifier
             .size(size)
             .clip(CircleShape)
             .background(
                 if (focused) {
-                    if (tv) NotflixColors.Accent.copy(alpha = 0.22f) else Color.White.copy(alpha = 0.16f)
+                    Color.White.copy(alpha = 0.16f)
                 } else Color.Black.copy(alpha = 0.42f)
             )
             .border(
-                if (focused) (if (tv) 3.dp else 2.dp) else 1.dp,
-                if (focused) focusColor else Color.White.copy(alpha = 0.2f),
+                if (focused) 2.dp else 1.dp,
+                if (focused) focusColor else baseColor,
                 CircleShape
             )
             .onFocusChanged { focused = it.isFocused }
@@ -3066,11 +3211,6 @@ private fun Context.findActivity(): Activity? {
     }
     return null
 }
-
-private fun panelSearchKey(value: String): String = value.lowercase()
-    .replace('ı', 'i').replace('î', 'i').replace('ç', 'c').replace('ğ', 'g')
-    .replace('ü', 'u').replace('û', 'u').replace('ş', 's').replace('ö', 'o')
-    .replace('â', 'a')
 
 private fun resizeModeFor(aspect: String): Int = when (aspect) {
     "fill" -> AspectRatioFrameLayout.RESIZE_MODE_FILL

@@ -38,6 +38,18 @@ class AppSettings(context: Context) {
         get() = prefs.getString(KEY_ASPECT, "fit").orEmpty().ifBlank { "fit" }
         set(value) = prefs.edit().putString(KEY_ASPECT, value).apply()
 
+    /**
+     * Canli TV icin video cozucu tercihi.
+     * "hw" = donanimsal (varsayilan, Media3 DEFAULT secici)
+     * "sw" = yazilimsal (MediaCodecSelector.PREFER_SOFTWARE)
+     */
+    var liveDecoder: String
+        get() = prefs.getString(KEY_LIVE_DECODER, "hw").orEmpty()
+            .takeIf { it == "sw" } ?: "hw"
+        set(value) = prefs.edit()
+            .putString(KEY_LIVE_DECODER, if (value == "sw") "sw" else "hw")
+            .apply()
+
     fun savedPosition(key: String): Long = prefs.getLong("position_$key", 0L)
 
     fun savePosition(key: String, positionMs: Long) {
@@ -192,6 +204,7 @@ class AppSettings(context: Context) {
         const val KEY_RESUME = "resume_enabled"
         const val KEY_INTRO_SEEN = "intro_seen"
         const val KEY_ASPECT = "player_aspect"
+        const val KEY_LIVE_DECODER = "live_decoder"
         const val KEY_LIBRARY = "library_items"
         const val KEY_WATCH = "watch_entries"
         const val KEY_LIVE_FAVORITES = "live_favorites"

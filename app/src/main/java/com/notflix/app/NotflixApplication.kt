@@ -8,6 +8,7 @@ import coil.memory.MemoryCache
 import com.notflix.app.data.AppSettings
 import com.notflix.app.data.FilmmoduRepository
 import com.notflix.app.data.LiveTvRepository
+import com.notflix.app.data.MediaMetaStore
 import com.notflix.app.data.UpdateRepository
 
 class NotflixApplication : Application(), ImageLoaderFactory {
@@ -28,6 +29,7 @@ class NotflixApplication : Application(), ImageLoaderFactory {
         content = FilmmoduRepository()
         live = LiveTvRepository(this)
         updates = UpdateRepository()
+        MediaMetaStore.init(this)
     }
 
     override fun newImageLoader(): ImageLoader = ImageLoader.Builder(this)

@@ -806,6 +806,19 @@ private fun DetailHero(
                             fontSize = 12.sp
                         )
                     }
+                    if (detail.type == MediaType.SERIES) {
+                        val sc = detail.seasonNumbers.size.takeIf { it > 0 }
+                            ?: detail.seasons.keys.size.takeIf { it > 0 }
+                            ?: 0
+                        if (sc > 0) {
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                text = "$sc Sezon",
+                                color = NotflixColors.TextSecondary,
+                                fontSize = 12.sp
+                            )
+                        }
+                    }
                     detail.rating?.let { rating ->
                         Spacer(modifier = Modifier.width(10.dp))
                         Icon(
@@ -863,7 +876,7 @@ private fun DetailHero(
                             .onFocusChanged { onPlayFocusChanged(it.hasFocus) }
                     )
                     NotflixButton(
-                        text = if (favorite) "Kitaplıkta" else "Kitaplığa Ekle",
+                        text = "",
                         icon = if (favorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
                         primary = false,
                         onClick = onToggleFavorite,

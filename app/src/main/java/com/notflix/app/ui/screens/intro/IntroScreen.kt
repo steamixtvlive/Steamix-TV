@@ -81,7 +81,7 @@ private val pages = listOf(
     ),
     IntroPage(
         "Her gün yeni filmler",
-        "Ana ekranda IMDb puanı yüksek filmler döner; fragmanı kendiliğinden açılır. Tüm API bizden, izlemesi sizden.",
+        "Ana ekranda IMDb puanı yüksek filmler döner. Tüm API bizden, izlemesi sizden.",
         "HER GÜN YENİ"
     ),
     IntroPage(
@@ -106,7 +106,7 @@ private val pages = listOf(
     ),
     IntroPage(
         "Kitaplığın senin",
-        "Favoriler, izleme geçmişi ve devam edenler tek yerde. Kaldığın yerden kaldığın yerden devam edersin.",
+        "Favoriler, izleme geçmişi ve devam edenler tek yerde. Kaldığın yerden devam edersin.",
         "KİTAPLIK"
     ),
     IntroPage(

@@ -225,7 +225,7 @@ class LiveTvRepository(private val context: Context) {
             .replace(Regex("[^a-z0-9]"), "")
 
         private val DESIRED_ORDER = listOf(
-            "TRT 1", "TRT 2", "TRT Haber", "TRT World", "TRT Türk", "TRT Belgesel",
+            "TRT 1", "TRT 2", "TRT World", "TRT Haber", "TRT Türk", "TRT Belgesel",          
             "TRT Müzik", "TRT Spor", "TRT Spor Yıldız", "TRT 4K", "TRT Avaz", "TRT Arabi",
             "TRT GAP", "TRT TSR", "ATV", "Kanal D", "Show TV", "Star TV", "NOW", "TV8",
             "Kanal 7", "Beyaz TV", "360", "TV 100", "24", "TVNet", "Ülke TV", "Akit TV",
@@ -233,7 +233,8 @@ class LiveTvRepository(private val context: Context) {
             "Bloomberg HT", "CNBC-e", "a Haber", "a Spor", "A News", "a2", "CNN Türk", "NTV",
             "Habertürk", "TGRT Haber", "Haber Global", "beIN Sports 1", "beIN Sports 2",
             "beIN Sports 3", "beIN Sports 4", "beIN Sports 4K", "beIN Sports Max 1",
-            "beIN Sports Max 2", "S Sport", "S Sport 2", "S Sport Plus", "Tivibu Spor 1",
+            "beIN Sports Max 2", "S Sport", "S Sport 2", "S Sport 3", "S Sport 4",
+            "S Sport Plus", "Tivibu Spor 1",
             "Tivibu Spor 2", "Tivibu Spor 3", "Tivibu Spor 4", "Spor Smart", "Spor Smart 2",
             "Eurosport 1", "Eurosport 2", "Eurosport 4K", "FB TV", "GS TV", "BJK TV", "BRT 2",
             "HT Spor", "tabii Spor", "NBA TV", "Sinema TV", "Sinema TV 2", "Sinema Aksiyon 1",
