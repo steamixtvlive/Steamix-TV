@@ -1412,15 +1412,7 @@ fun PlayerScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .pointerInput(panelOpen) {
-                    detectTapGestures { offset ->
-                        if (panelOpen) return@detectTapGestures
-                        val half = size.width / 2
-                        if (offset.x < half) {
-                            seekWithStep(-1)
-                        } else {
-                            seekWithStep(1)
-                        }
-                    }
+                    detectTapGestures { if (!panelOpen) controlsVisible = !controlsVisible }
                 }
         )
 

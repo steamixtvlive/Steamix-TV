@@ -5,12 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
 html, body { margin: 0; padding: 0; background: #000; height: 100%; overflow: hidden; }
-/* YouTube oynatici arayuzunu gizlemek icin kucuk bir yakinlastirma yapilir;
-   %200 yakinlastirma videoyu kirpiyor ve "hizli" gorunmesine yol aciyordu. */
+/* v1.0.19 ile ayni: %132 yakinlastirma ile YouTube arayuzu (logo, kontroller,
+   bitis ekrani) kırpılır. Video tam ekran gorunur. */
 #player { position: absolute; top: 50%; left: 50%; width: 132%; height: 132%; transform: translate(-50%, -50%); }
 video { filter: brightness(1.06) contrast(1.05) saturate(1.08); }
-/* Beyaz "baslat" butonu / duraklatma perdesi / bitis ekrani gorunmesin.
-   Videonun tam ekran kesintisiz surmesi icin bunlar gizlenir. */
+/* Beyaz "baslat" butonu / duraklatma perdesi / bitis ekrani gorunmesin. */
 .ytp-large-play, .ytp-pause-overlay, .ytp-endscreen-content,
 .ytp-ce-element, .ytp-chrome-bottom, .ytp-chrome-top,
 .ytp-gradient-bottom, .ytp-gradient-top, .ytp-error, .ytp-welcome {
@@ -25,26 +24,28 @@ html.ytp-android-app, .ytp-android-app { display: none !important; }
 <script>
 var __playing = false;
 var __player = null;
-var __redirected = false;
+var __failed = false;
+var __retried = false;
+var __endGuardAt = 0;
 
 function slog(m) { try { Android.log(m); } catch (e) {} }
 
-function redirectToWatch() {
-  // Navigating away to m.youtube.com often leaves some trailers on its
-  // white play overlay. Keep the source/ID in the iframe and recover there.
-  if (__redirected) { return; }
-  __redirected = true;
-  slog('redirecting to m.youtube.com/watch');
-  window.location.href = 'https://m.youtube.com/watch?v=__VIDEO_ID__&autoplay=1&mute=1&playsinline=1&rel=0&loop=1&vq=medium';
+function reportFailure(reason) {
+  if (__failed) { return; }
+  __failed = true;
+  slog('player-failed:' + reason);
+  try { Android.notifyPlayerError(); } catch (e) {}
 }
 
 function onYouTubeIframeAPIReady() {
-  slog('iframe-api-ready');
+  slog('iframe-api-ready origin=' + location.origin);
   try {
     __player = new YT.Player('player', {
       videoId: '__VIDEO_ID__',
       playerVars: {
         autoplay: 1,
+        mute: 1,
+        enablejsapi: 1,
         controls: 0,
         loop: 1,
         playlist: '__VIDEO_ID__',
@@ -54,45 +55,97 @@ function onYouTubeIframeAPIReady() {
         fs: 0,
         iv_load_policy: 3,
         disablekb: 1,
-        // Fragmanlar 360p (medium) sabit: hizli baslar, agir kalite yavas aciyordu.
         vq: 'medium'
       },
       events: {
         onReady: function (e) {
           slog('player-ready');
-          // Kalite zorlanmaz (setPlaybackQuality oynaticiyi bos birakiyordu);
-          // 360p istegi playerVars icinde veriliyor.
           try { e.target.playVideo(); } catch (err) {}
         },
         onStateChange: function (e) {
           slog('state:' + e.data);
           if (e.data === 1) {
-            __playing = true;
-            try { Android.notifyPlaying(); } catch (err) {}
+            if (!__playing) {
+              __playing = true;
+              try { Android.notifyPlaying(); } catch (err) {}
+            }
           }
+          // Bitince basa sar ve oynat.
           if (e.data === 0) {
+            try { Android.notifyRestart(); } catch (err) {}
             try { e.target.seekTo(0, true); e.target.playVideo(); } catch (err) {}
+          }
+          if (e.data === 2 && window.__svPaused !== true) {
+            slog('self-paused, resuming');
+            try { e.target.playVideo(); } catch (err) {}
           }
         },
         onError: function (e) {
           slog('player-error:' + (e.data !== undefined ? e.data : '?'));
-          redirectToWatch();
+          var code = (e.data !== undefined ? e.data : '?');
+          if (code === 5 && !__retried) {
+            __retried = true;
+            setTimeout(function () {
+              try { e.target.loadVideoById('__VIDEO_ID__', 0); } catch (err) {}
+            }, 1200);
+            return;
+          }
+          reportFailure(code);
         }
       }
     });
   } catch (err) {
     slog('player-create-error:' + err);
-    redirectToWatch();
+    reportFailure('create');
   }
 }
 
-setTimeout(function () {
-  if (!__playing) { redirectToWatch(); }
-}, 6000);
+// Bitis ekranı/oneri katmani gelmeden (1 sn once) basa sar.
+// notifyRestart ile WebView gizlenir (poster gorunsun), video oynayınca tekrar acilir.
+function __svProgress() {
+  try {
+    if (!__player || !__player.getCurrentTime) { return; }
+    var t = __player.getCurrentTime() || 0;
+    var d = 0;
+    try { d = __player.getDuration() || 0; } catch (e) {}
+    if (d > 1 && t >= d - 1.0) {
+      var now = Date.now();
+      if (now - __endGuardAt > 2000) {
+        __endGuardAt = now;
+        __playing = false;
+        slog('end-guard loop t=' + t.toFixed(1) + '/' + d.toFixed(1));
+        try { Android.notifyRestart(); } catch (e) {}
+        try { __player.seekTo(0, true); __player.playVideo(); } catch (e) {}
+      }
+    }
+  } catch (e) {}
+}
+setInterval(__svProgress, 500);
 
 setTimeout(function () {
-  if (!__playing) { try { Android.notifyPlayerError(); } catch (e) {} }
+  if (!__playing) { reportFailure('timeout'); }
 }, 24000);
+
+// Watchdog: YouTube kendini duraklatirsa geri alinir.
+function __svResume() {
+  try {
+    if (window.__svPaused === true) { return; }
+    if (__player && __player.getPlayerState) {
+      var s = __player.getPlayerState();
+      if (s === 2 || s === 0 || s === 5 || s === -1) {
+        try { __player.playVideo(); } catch (e) {}
+      }
+    }
+  } catch (e) {}
+}
+
+window.__svResume = __svResume;
+
+setInterval(__svResume, 1500);
+document.addEventListener('visibilitychange', function () {
+  if (document.visibilityState === 'visible') { setTimeout(__svResume, 250); }
+});
+window.addEventListener('focus', function () { setTimeout(__svResume, 250); });
 </script>
 </body>
 </html>

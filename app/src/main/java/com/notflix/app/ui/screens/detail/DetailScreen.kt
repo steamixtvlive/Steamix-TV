@@ -1,4 +1,4 @@
-﻿package com.notflix.app.ui.screens.detail
+package com.notflix.app.ui.screens.detail
 
 import android.content.Context
 import androidx.compose.foundation.background
@@ -32,8 +32,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
-import androidx.compose.material.icons.filled.Fullscreen
-import androidx.compose.material.icons.filled.FullscreenExit
 import androidx.compose.material.icons.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
@@ -383,8 +381,7 @@ private fun DetailContent(
             detailScroll.scrollTo(0)
         }
     }
-    // Fragman tam ekran modu: sayfa icerigi gizlenir, video ekrani kaplar.
-    var trailerFullscreen by remember(detail.url) { mutableStateOf(false) }
+    // Fragman tam ekran modu kaldırıldı.
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -458,9 +455,7 @@ private fun DetailContent(
                     )
                 )
             },
-            onPlay = { onPlay(action.first, action.second) },
-            fullscreen = trailerFullscreen,
-            onToggleFullscreen = { trailerFullscreen = !trailerFullscreen }
+            onPlay = { onPlay(action.first, action.second) }
         )
 
         if (detail.description.isNotBlank()) {
@@ -606,9 +601,7 @@ private fun DetailHero(
     trackBadges: List<String> = emptyList(),
     favorite: Boolean,
     onToggleFavorite: () -> Unit,
-    onPlay: () -> Unit,
-    fullscreen: Boolean = false,
-    onToggleFullscreen: () -> Unit = {}
+    onPlay: () -> Unit
 ) {
     val tv = isTvLayout()
     val context = LocalContext.current
@@ -630,12 +623,7 @@ private fun DetailHero(
     }
 
     Box(
-        modifier = if (fullscreen) {
-            Modifier.fillMaxSize().background(Color.Black)
-        } else {
-            // Telefonda yatay mod ekran kisitlayici: hero sabit 430dp kalinca
-            // altindaki baslik/poster ekranin disinda kalir. Ekran yuksekligine
-            // gore kisaltilir.
+        modifier = run {
             val screenHeight = LocalConfiguration.current.screenHeightDp
             val heroHeight = if (tv) 540.dp else (screenHeight * 0.74f).dp.coerceIn(240.dp, 430.dp)
             Modifier
@@ -643,14 +631,12 @@ private fun DetailHero(
                 .height(heroHeight)
         }
     ) {
-        if (!fullscreen) {
-            AsyncImage(
-                model = detail.backdrop.ifBlank { detail.poster },
-                contentDescription = detail.title,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
-            )
-        }
+        AsyncImage(
+            model = detail.backdrop.ifBlank { detail.poster },
+            contentDescription = detail.title,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize()
+        )
         val key = trailerKeys.getOrNull(trailerIndex)
         if (key != null && !trailerFailed) {
             TrailerPlayer(
@@ -731,27 +717,7 @@ private fun DetailHero(
                     else "Fragmanı oynat",
                     onClick = { trailerPlaying = !trailerPlaying }
                 )
-                TrailerControl(
-                    icon = if (fullscreen) Icons.Filled.FullscreenExit else Icons.Filled.Fullscreen,
-                    contentDescription = if (fullscreen) "Tam ekrandan çık" else "Tam ekran",
-                    onClick = onToggleFullscreen
-                )
             }
-        }
-        if (fullscreen) {
-            // Tam ekranda sol ustte kapat dugmesi.
-            IconAction(
-                icon = Icons.Filled.Close,
-                contentDescription = "Tam ekrandan çık",
-                onClick = onToggleFullscreen,
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .padding(
-                        start = screenPadding(),
-                        top = if (tv) 18.dp else 10.dp
-                    )
-                    .background(Color.Black.copy(alpha = 0.55f), CircleShape)
-            )
         }
         Row(
             modifier = Modifier

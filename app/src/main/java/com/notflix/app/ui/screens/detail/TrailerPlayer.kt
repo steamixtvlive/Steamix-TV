@@ -24,28 +24,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import java.io.ByteArrayInputStream
-import android.net.Uri
-import androidx.compose.ui.focus.FocusRequester
 
 private const val TAG = "NotflixTrailer"
 
-/**
- * Detay sayfasindaki fragman oynaticisi.
- *
- * YouTube, dogrudan embed sayfasi yuklenen bir WebView'a oynatici vermez
- * (152-4 / 153 hatalari). Eski Steamix projesindeki calisan cozum uygulanir:
- *
- * - WebView gercek "https://www.youtube.com/" adresine gider ama ana cerceve
- *   isteği [WebViewClient.shouldInterceptRequest] ile yerel HTML olarak
- *   servis edilir. Boylece dokumanin origin'i gercekten youtube.com olur ve
- *   embed, web sitesindeki gibi yuklenir.
- * - Oynatici 6 saniye icinde baslamazsa m.youtube.com/watch adresine yonlendirilir.
- *   Sayfa yuklenince <video> elementi tam ekrana sabitlenir, dongu acilir ve
- *   ses kapatilir; boylece kadreler dogrudan sayfa tarafindan cizilir.
- * - WebView basta GORUNMEZ; video gercekten calismaya baslayinca gorunur olur.
- *   O ana kadar poster gorunur, hicbir siyah kutu olusmaz.
- * - Ses acma/kapatma ve oynat/durdur komutlari her iki yolda da calisir.
- */
 @Composable
 fun TrailerPlayer(
     videoKey: String,
@@ -63,8 +44,6 @@ fun TrailerPlayer(
     var isVisible by remember(videoKey) { mutableStateOf(false) }
     var ready by remember(videoKey) { mutableStateOf(false) }
 
-    // Oynaticiya gonderilecek anlik durum: [0] = sessiz mi, [1] = oynuyor mu.
-    // (Watch sayfasi degisebilir, bu yuzden her sayfa sonrasi tekrar gonderilir.)
     val desired = remember(videoKey) { arrayOf(false, true) }
     desired[0] = !soundOn
     desired[1] = playing
@@ -79,10 +58,17 @@ fun TrailerPlayer(
                 onPlaying = {
                     ready = true
                     isVisible = true
+                    webView?.let { active ->
+                        sendControl(active, !soundOnState.value, playingState.value)
+                    }
                 },
                 onFailed = {
                     isVisible = false
                     onFailedState.value()
+                },
+                onRestart = {
+                    // Bitis/onori katmani yerine poster gorunsun (kisa sure).
+                    isVisible = false
                 }
             ).also { created ->
                 webView = created
@@ -90,11 +76,14 @@ fun TrailerPlayer(
         },
         update = { view ->
             view.visibility = if (isVisible) View.VISIBLE else View.INVISIBLE
+            view.keepScreenOn = playing && isVisible
+            if (playing) {
+                runCatching { view.onResume() }
+                runCatching { view.resumeTimers() }
+            }
         },
         onRelease = { view ->
-            // WebView yalnizca bir kez yok edilir. Once parent'tan cikarilir,
-            // aksi halde "destroy" cagrisi cokmus (crash) olur.
-            webView = null
+            if (webView === view) webView = null
             runCatching {
                 view.removeJavascriptInterface("Android")
                 view.stopLoading()
@@ -105,15 +94,9 @@ fun TrailerPlayer(
     )
 
     DisposableEffect(videoKey) {
-        onDispose {
-            // onRelease zaten yok etti; burada sadece referansi birak.
-            webView = null
-        }
+        onDispose { webView = null }
     }
 
-    // Ses / oynatma durumu degistiginde oynaticiya ilet.
-    // NOT: Oynatici kendi durumunu (mute) sonradan degistirirse uygulama
-    // durumunu korur; ses yalnizca kullanicinin istegiyle degisir.
     LaunchedEffect(soundOn, playing, ready) {
         val view = webView ?: return@LaunchedEffect
         sendControl(view, !soundOnState.value, playingState.value)
@@ -123,7 +106,8 @@ fun TrailerPlayer(
 private class TrailerJsBridge(
     private val onLog: (String) -> Unit,
     private val onPlaying: () -> Unit,
-    private val onFailed: () -> Unit
+    private val onFailed: () -> Unit,
+    private val onRestart: () -> Unit
 ) {
     @JavascriptInterface
     fun log(message: String) = onLog(message)
@@ -133,24 +117,28 @@ private class TrailerJsBridge(
 
     @JavascriptInterface
     fun notifyPlayerError() = onFailed()
+
+    @JavascriptInterface
+    fun notifyRestart() = onRestart()
 }
 
-/** Asset'teki scriptleri okur (node ile dogrulanmis, sozdizimi hatasi yok). */
 private fun asset(context: Context, path: String): String =
     runCatching {
         context.assets.open(path).bufferedReader().use { it.readText() }
     }.getOrDefault("")
 
 private fun sendControl(view: WebView, muted: Boolean, play: Boolean) {
-    val context = view.context
-    val script = asset(context, "trailer/control.js")
-    if (script.isNotBlank()) {
-        view.evaluateJavascript(script, null)
+    runCatching {
+        val context = view.context
+        val script = asset(context, "trailer/control.js")
+        if (script.isNotBlank()) {
+            view.evaluateJavascript(script, null)
+        }
+        view.evaluateJavascript(
+            "try{if(window.__svControl){window.__svControl($muted,$play);}}catch(e){}",
+            null
+        )
     }
-    view.evaluateJavascript(
-        "try{if(window.__svControl){window.__svControl($muted,$play);}}catch(e){}",
-        null
-    )
 }
 
 @SuppressLint("SetJavaScriptEnabled")
@@ -159,7 +147,8 @@ private fun createTrailerWebView(
     videoId: String,
     desiredState: () -> Pair<Boolean, Boolean>,
     onPlaying: () -> Unit,
-    onFailed: () -> Unit
+    onFailed: () -> Unit,
+    onRestart: () -> Unit
 ): WebView = WebView(context).apply {
     layoutParams = ViewGroup.LayoutParams(
         ViewGroup.LayoutParams.MATCH_PARENT,
@@ -169,15 +158,13 @@ private fun createTrailerWebView(
     isFocusable = false
     setOnTouchListener { _, _ -> true }
     setBackgroundColor(android.graphics.Color.BLACK)
-    // Video calmaya baslayana kadar gizli: arkada poster gorunur, siyah kutu olmaz.
     visibility = View.INVISIBLE
     settings.javaScriptEnabled = true
     settings.domStorageEnabled = true
     settings.mediaPlaybackRequiresUserGesture = false
-    // WebView kullanici ajani YouTube icin kirmizı bayrak; normal Chrome UA verilir.
     settings.userAgentString =
-        "Mozilla/5.0 (Linux; Android 13; SM-S918B) AppleWebKit/537.36 " +
-            "(KHTML, like Gecko) Chrome/122.0.0.0 Mobile Safari/537.36"
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
+            "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
     webChromeClient = object : WebChromeClient() {
         override fun onConsoleMessage(consoleMessage: ConsoleMessage?): Boolean {
             consoleMessage?.let { Log.d(TAG, "console ${it.message()}") }
@@ -187,8 +174,9 @@ private fun createTrailerWebView(
     addJavascriptInterface(
         TrailerJsBridge(
             onLog = { Log.d(TAG, it) },
-            onPlaying = onPlaying,
-            onFailed = onFailed
+            onPlaying = { post { onPlaying() } },
+            onFailed = { post { onFailed() } },
+            onRestart = { post { onRestart() } }
         ),
         "Android"
     )
@@ -198,22 +186,37 @@ private fun createTrailerWebView(
             request: WebResourceRequest
         ): WebResourceResponse? {
             val url = request.url
-            if (request.isForMainFrame && url.host == "www.youtube.com" && url.path == "/") {
-                val html = asset(context, "trailer/player.html").replace("__VIDEO_ID__", videoId)
-                return WebResourceResponse(
-                    "text/html",
-                    "utf-8",
-                    ByteArrayInputStream(html.toByteArray(Charsets.UTF_8))
-                )
+            if (url.host == "appassets.androidplatform.net" && url.path.orEmpty().startsWith("/trailer/")) {
+                val name = url.path.orEmpty().removePrefix("/trailer/")
+                if (name.isNotBlank() && !name.contains("..")) {
+                    val mime = when {
+                        name.endsWith(".html") -> "text/html"
+                        name.endsWith(".js") -> "application/javascript"
+                        name.endsWith(".css") -> "text/css"
+                        name.endsWith(".json") -> "application/json"
+                        else -> "text/plain"
+                    }
+                    val body = if (name == "player.html") {
+                        asset(context, "trailer/player.html").replace("__VIDEO_ID__", videoId)
+                    } else {
+                        asset(context, "trailer/$name")
+                    }
+                    if (body.isNotBlank()) {
+                        return WebResourceResponse(
+                            mime,
+                            "utf-8",
+                            200,
+                            "OK",
+                            mapOf("Cache-Control" to "no-store"),
+                            ByteArrayInputStream(body.toByteArray(Charsets.UTF_8))
+                        )
+                    }
+                }
             }
             return super.shouldInterceptRequest(view, request)
         }
 
-        override fun onPageStarted(
-            view: WebView,
-            url: String?,
-            favicon: android.graphics.Bitmap?
-        ) {
+        override fun onPageStarted(view: WebView, url: String?, favicon: android.graphics.Bitmap?) {
             Log.d(TAG, "page-started: $url")
             super.onPageStarted(view, url, favicon)
         }
@@ -221,18 +224,6 @@ private fun createTrailerWebView(
         override fun onPageFinished(view: WebView, url: String?) {
             Log.d(TAG, "page-finished: $url")
             super.onPageFinished(view, url)
-            // Watch sayfasi yedegi: YouTube arayuzunu temizle, <video> elementini
-            // tam ekrana sabitle, dongu kur ve sesi kapat.
-            if (url?.contains("watch") == true) {
-                val clean = asset(context, "trailer/clean.js")
-                if (clean.isNotBlank()) {
-                    view.evaluateJavascript(clean, null)
-                }
-                view.evaluateJavascript("try{if(window.__svClean){window.__svClean();}}catch(e){}", null)
-                val (muted, play) = desiredState()
-                view.postDelayed({ sendControl(view, muted, play) }, 1200)
-                view.postDelayed({ sendControl(view, muted, play) }, 3000)
-            }
         }
 
         override fun onReceivedError(
@@ -246,6 +237,15 @@ private fun createTrailerWebView(
             }
             super.onReceivedError(view, request, error)
         }
+
+        override fun onRenderProcessGone(
+            view: WebView,
+            detail: android.webkit.RenderProcessGoneDetail?
+        ): Boolean {
+            Log.d(TAG, "renderer-gone didCrash=${detail?.didCrash()}")
+            onFailed()
+            return true
+        }
     }
-    loadUrl("https://www.youtube.com/")
+    loadUrl("https://appassets.androidplatform.net/trailer/player.html")
 }
