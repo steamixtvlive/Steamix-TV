@@ -204,7 +204,7 @@ fun AppRoot() {
                         .fillMaxSize()
                         .background(NotflixColors.Bg)
                 ) {
-                    val maintenanceMode = true
+                    val maintenanceMode = false
     if (rootTab.isNotBlank() && !maintenanceMode) {
                         NotflixTopBar(
                             tabs = TABS,

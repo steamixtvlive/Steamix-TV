@@ -130,7 +130,7 @@ fun HomeScreen(
                     if (cached != null) {
                         HomeUi.Ready(cached)
                     } else {
-                        HomeUi.Failed("Uygulama şu an bakıma alınmıştır. Altyapı sağlayıcımızda yaşanan bağlantı sorunları nedeniyle içerikler geçici olarak erişilemez durumdadır. Teknik ekibimiz sorunu çözmek için çalışmaktadır. Lütfen daha sonra tekrar deneyin. Anlayışınız için teşekkür ederiz.")
+                        HomeUi.Failed(failure.message ?: "Katalog yüklenemedi.")
                     }
                 }
             )
@@ -142,14 +142,8 @@ fun HomeScreen(
             NotflixTheme { Box(Modifier.fillMaxSize()) { LoadingState("Katalog hazırlanıyor…") } }
         }
         is HomeUi.Failed -> {
-            Box(Modifier.fillMaxSize().background(NotflixColors.Bg), contentAlignment = Alignment.Center) {
-                Text(
-                    text = state.message,
-                    color = NotflixColors.TextPrimary,
-                    fontSize = 18.sp,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(32.dp)
-                )
+            Box(Modifier.fillMaxSize()) {
+                ErrorState(state.message) { reloadTick++ }
             }
         }
         is HomeUi.Ready -> {

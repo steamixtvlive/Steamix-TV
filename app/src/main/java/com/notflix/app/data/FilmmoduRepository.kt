@@ -591,7 +591,7 @@ class FilmmoduRepository {
                 .header("User-Agent", USER_AGENT)
                 .header("Accept", "text/vtt,application/x-subrip,application/ttml+xml,*/*;q=0.8")
                 .header("Referer", referer)
-                .header("Origin", "https://abukzubuk.ink")
+                .header("Origin", "https://abukzubuk3.vip")
                 .build()
             client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) return@use null
@@ -855,11 +855,9 @@ class FilmmoduRepository {
                 ?.let { RATING.find(it)?.groupValues?.getOrNull(1)?.toDoubleOrNull() }
             val year = slide.select("span").map { it.text().trim() }
                 .firstOrNull { YEAR.matches(it) }
-            val genreLine = slide.select("span.line-clamp-1").firstOrNull()?.text()?.trim()
+            val genreLine = slide.selectFirst("span.line-clamp-1")?.text()?.trim()
                 ?: badges.filterNot { it in BADGE_WORDS }.joinToString(", ")
             val description = slide.selectFirst("p")?.text()?.trim().orEmpty()
-            // Kapak gorseli hero'da sag tarafta gosteriliyor; sitede varsa al,
-            // yoksa detay sayfasindan (fillDescriptions) sonradan gelir.
             val posterImage = slide.selectFirst("img[src*=/posters/]")
             val posterUrl = posterImage?.absUrl("src")?.ifBlank { posterImage.attr("src") }.orEmpty()
             HeroSlide(
@@ -893,17 +891,70 @@ class FilmmoduRepository {
                 sections += HomeSection(heading.text().trim(), cards, moreUrl)
             }
         }
-
         val deduped = sections.map { section ->
-            HomeSection(section.title, section.items, section.moreUrl)
+            HomeSection(section.title, pinCrystalLake(section.items), section.moreUrl)
         }
-        val featured = hero.ifEmpty { buildHeroFallback(deduped) }
-        return HomeData(buildHeroQueue(featured, deduped), deduped)
+        val fallbackSections = if (deduped.isEmpty()) {
+            val cards = pinCrystalLake(parseCards(doc.selectFirst("main") ?: doc)
+                .filter { !it.url.contains("/sezon-") }
+                .distinctBy { it.url }
+                .take(40))
+            if (cards.size >= 2) listOf(HomeSection("Tüm İçerikler", cards)) else deduped
+        } else deduped
+        val crystalLake = findCrystalLake(doc)
+        val featured = if (crystalLake == null) hero.ifEmpty { buildHeroFallback(fallbackSections) }
+            else listOf(crystalLake) + hero.filterNot { isCrystalLake(it.url, it.title) }
+        return HomeData(buildHeroQueue(featured, fallbackSections), fallbackSections)
     }
 
+    private fun pinCrystalLake(items: List<MediaCard>): List<MediaCard> {
+        val pinned = items.firstOrNull { isCrystalLake(it.url, it.title) } ?: return items
+        return listOf(pinned) + items.filterNot { it.url == pinned.url }
+    }
+
+    private fun isCrystalLake(url: String, title: String): Boolean =
+        title.contains("crystal lake", ignoreCase = true) ||
+            url.contains("crystal-lake", ignoreCase = true) ||
+            url.contains("crystal_lake", ignoreCase = true)
+
+    private fun findCrystalLake(doc: Document): HeroSlide? {
+        val cached = searchIndex.values.firstOrNull { isCrystalLake(it.url, it.title) }
+        val card = cached ?: run {
+            val anchor = doc.select("a[href]").firstOrNull { link ->
+                isCrystalLake(link.absUrl("href"), link.text())
+            } ?: return null
+            parseCards(anchor.parent() ?: anchor).firstOrNull { isCrystalLake(it.url, it.title) }
+        } ?: return null
+        return HeroSlide(
+            title = card.title,
+            url = card.url,
+            backdrop = card.poster,
+            poster = card.poster,
+            type = card.type,
+            rating = card.rating,
+            year = card.year
+        )
+    }
     private fun buildHeroQueue(siteHero: List<HeroSlide>, sections: List<HomeSection>): List<HeroSlide> {
         val seen = LinkedHashMap<String, HeroSlide>()
         siteHero.forEach { seen[it.url] = it }
+        val crystalLake = sections.asSequence().flatMap { it.items.asSequence() }
+            .firstOrNull { isCrystalLake(it.url, it.title) }
+        if (crystalLake != null) {
+            val hero = HeroSlide(
+                title = crystalLake.title,
+                url = crystalLake.url,
+                backdrop = crystalLake.poster,
+                poster = crystalLake.poster,
+                type = crystalLake.type,
+                rating = crystalLake.rating,
+                year = crystalLake.year
+            )
+            val ordered = linkedMapOf(hero.url to hero)
+            seen.forEach { (url, slide) -> if (url != hero.url) ordered[url] = slide }
+            seen.clear()
+            seen.putAll(ordered)
+        }
         val queues = sections.map { section ->
             section.items.filter { !it.url.contains("/sezon-") && it.url !in seen }
                 .distinctBy { it.url }
@@ -933,7 +984,6 @@ class FilmmoduRepository {
         }
         return seen.values.take(HERO_SIZE)
     }
-
     private fun buildHeroFallback(sections: List<HomeSection>): List<HeroSlide> =
         sections.flatMap { it.items }.distinctBy { it.url }.take(5).map {
             HeroSlide(
@@ -1152,13 +1202,10 @@ class FilmmoduRepository {
     private suspend fun executeFetch(url: String, referer: String?): String = suspendCancellableCoroutine { cont ->
         val builder = Request.Builder()
             .url(url)
-            .header("User-Agent", USER_AGENT)
+            .header("User-Agent", "Notflix Android")
             .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
             .header("Accept-Language", "tr-TR,tr;q=0.9,en;q=0.7")
-        if (!referer.isNullOrBlank()) {
-            builder.header("Referer", referer)
-            builder.header("Origin", "https://filmmodu.news")
-        }
+            .header("Referer", referer ?: "$BASE/")
         val call = client.newCall(builder.build())
         cont.invokeOnCancellation { runCatching { call.cancel() } }
         call.enqueue(object : Callback {
@@ -1184,7 +1231,6 @@ class FilmmoduRepository {
             }
         })
     }
-
     private fun pageUrl(url: String, page: Int): String {
         if (page <= 1) return url
         return if (url.contains('?')) "$url&page=$page" else "$url?page=$page"

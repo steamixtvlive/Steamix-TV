@@ -1,6 +1,6 @@
 {
-  "versionCode": 25,
-  "versionName": "1.0.21",
-  "apkUrl": "https://github.com/steamixtvlive/Steamix-TV/releases/latest/download/notflix.apk",
-  "notes": "plan dışı zorunlu güncelleme"
+    "versionCode":  1,
+    "versionName":  "1.0",
+    "apkUrl":  "https://github.com/steamixtvlive/Steamix-TV/releases/latest/download/notflix.apk",
+    "notes":  "Crystal Lake sabit öne çıkarıldı"
 }
