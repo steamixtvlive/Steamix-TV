@@ -129,7 +129,7 @@ fun HomeScreen(
                     if (cached != null) {
                         HomeUi.Ready(cached)
                     } else {
-                        HomeUi.Failed(failure.message ?: "Katalog yüklenemedi.")
+                        HomeUi.Failed("Uygulama şu an bakıma alınmıştır. Altyapı sağlayıcımızda yaşanan bağlantı sorunları nedeniyle içerikler geçici olarak erişilemez durumdadır. Teknik ekibimiz sorunu çözmek için çalışmaktadır. Lütfen daha sonra tekrar deneyin. Anlayışınız için teşekkür ederiz.")
                     }
                 }
             )
