@@ -63,6 +63,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -141,8 +142,14 @@ fun HomeScreen(
             NotflixTheme { Box(Modifier.fillMaxSize()) { LoadingState("Katalog hazırlanıyor…") } }
         }
         is HomeUi.Failed -> {
-            Box(Modifier.fillMaxSize()) {
-                ErrorState(state.message) { reloadTick++ }
+            Box(Modifier.fillMaxSize().background(NotflixColors.Bg), contentAlignment = Alignment.Center) {
+                Text(
+                    text = state.message,
+                    color = NotflixColors.TextPrimary,
+                    fontSize = 18.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(32.dp)
+                )
             }
         }
         is HomeUi.Ready -> {
