@@ -3234,6 +3234,6 @@ private fun seasonFromUrl(url: String): Int =
 private fun episodeFromUrl(url: String): Int =
     Regex("/bolum-(\\d+)").find(url)?.groupValues?.getOrNull(1)?.toIntOrNull() ?: 0
 
-private const val ORIGIN = "https://filmmodu.news"
+private const val ORIGIN = "https://abukzubuk3.vip"
 private const val USER_AGENT =
     "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36"

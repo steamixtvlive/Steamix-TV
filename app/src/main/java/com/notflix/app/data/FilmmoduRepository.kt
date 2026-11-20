@@ -465,36 +465,50 @@ class FilmmoduRepository {
     suspend fun resolve(pageUrl: String): PlayInfo = withContext(Dispatchers.IO) {
         var effectivePage = pageUrl
         var doc = fetchDoc(effectivePage)
-        var pv = doc.selectFirst("[data-pv]")?.attr("data-pv").orEmpty()
 
-        if (pv.isBlank()) {
-            val episodeUrl = doc.selectFirst("a[href*=/sezon-][href*=/bolum-]")
-                ?.absUrl("href")
-                .orEmpty()
-            if (episodeUrl.isNotBlank()) {
-                effectivePage = episodeUrl
-                doc = fetchDoc(effectivePage)
-                pv = doc.selectFirst("[data-pv]")?.attr("data-pv").orEmpty()
+        // Abukzubuk gibi sitelerde iframe dogrudan s.php?s=TOKEN adresiyle gelir.
+        var tokenUrl = doc.selectFirst("iframe[src*=\"s.php?s=\"]")?.attr("src").orEmpty()
+        var pv = ""
+        if (tokenUrl.isBlank()) {
+            pv = doc.selectFirst("[data-pv]")?.attr("data-pv").orEmpty()
+            if (pv.isBlank()) {
+                val episodeUrl = doc.selectFirst("a[href*=/sezon-][href*=/bolum-]")
+                    ?.absUrl("href")
+                    .orEmpty()
+                if (episodeUrl.isNotBlank()) {
+                    effectivePage = episodeUrl
+                    doc = fetchDoc(effectivePage)
+                    pv = doc.selectFirst("[data-pv]")?.attr("data-pv").orEmpty()
+                    if (tokenUrl.isBlank()) tokenUrl = doc.selectFirst("iframe[src*=\"s.php?s=\"]")?.attr("src").orEmpty()
+                }
             }
         }
-        if (pv.isBlank()) throw IOException("Bu içerik için oynatma anahtarı bulunamadı.")
+        if (tokenUrl.isBlank() && pv.isBlank()) throw IOException("Bu içerik için oynatma anahtarı bulunamadı.")
 
-        val scriptSrc = doc.selectFirst("script[src*=/assets/js/core.js]")?.attr("src").orEmpty()
-        val playerBase = if (scriptSrc.startsWith("http")) {
-            val parsed = URI(scriptSrc)
+        val playerBase = if (tokenUrl.startsWith("http")) {
+            val parsed = URI(tokenUrl)
             "${parsed.scheme}://${parsed.host}"
         } else {
             "https://pilavyerplay.top"
         }
 
-        val core = coreCache.get() ?: fetch("$playerBase/assets/js/core.js").also { coreCache.put(it) }
-        val sPath = Regex("""["']([^"']*s\.php\?s=)["']""")
-            .find(core)?.groupValues?.getOrNull(1)
-            ?: "/assets/js/s.php?s="
-        val tokenUrl = when {
-            sPath.startsWith("http") -> sPath + pv
-            sPath.startsWith("/") -> playerBase + sPath + pv
-            else -> "$playerBase/$sPath$pv"
+        if (tokenUrl.isBlank()) {
+            val scriptSrc = doc.selectFirst("script[src*=/assets/js/core.js]")?.attr("src").orEmpty()
+            val playerBase = if (scriptSrc.startsWith("http")) {
+                val parsed = URI(scriptSrc)
+                "${parsed.scheme}://${parsed.host}"
+            } else {
+                "https://pilavyerplay.top"
+            }
+            val core = coreCache.get() ?: fetch("$playerBase/assets/js/core.js").also { coreCache.put(it) }
+            val sPath = Regex("""["']([^"']*s\.php\?s=)["']""")
+                .find(core)?.groupValues?.getOrNull(1)
+                ?: "/assets/js/s.php?s="
+            tokenUrl = when {
+                sPath.startsWith("http") -> sPath + pv
+                sPath.startsWith("/") -> playerBase + sPath + pv
+                else -> "$playerBase/$sPath$pv"
+            }
         }
 
         val playerHtml = fetch(tokenUrl, referer = effectivePage)
@@ -1309,7 +1323,7 @@ class FilmmoduRepository {
 
     companion object {
         private const val TAG = "NotflixCatalog"
-        private const val BASE = "https://filmmodu.news"
+        private const val BASE = "https://abukzubuk3.vip"
     private const val TMDB_KEY = "21e3ff1da3bd38d1f167560193503c34"
         private const val YOUTUBE_API_KEY = "AIzaSyDAivPXYp-wdmN2AmL7HUXvf4wHP2o9dHQ"
         private const val TMDB_TOKEN =
