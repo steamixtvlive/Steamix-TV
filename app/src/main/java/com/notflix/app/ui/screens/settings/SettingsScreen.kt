@@ -218,7 +218,9 @@ fun SettingsScreen(
             }
 
             item(key = "dev-head") { SectionHeader("Geliştirici RENDIR MEDİA") }
-            item(key = "dev-card") { DeveloperCard() }
+            item(key = "dev-card") {
+                DeveloperCard()
+            }
 
             item(key = "update-head") { SectionHeader("Güncelleme") }
             item(key = "update-card") {

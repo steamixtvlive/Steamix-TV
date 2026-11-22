@@ -285,7 +285,7 @@ private fun HomeContent(
                                     end = screenPadding(),
                                     bottom = if (isTvLayout()) 26.dp else 16.dp
                                 ),
-                            horizontalArrangement = Arrangement.spacedBy(if (hero.size > 12) 3.dp else 6.dp)
+                            horizontalArrangement = Arrangement.spacedBy(if (hero.size > 12) 4.dp else 7.dp)
                         ) {
                             repeat(hero.size) { index ->
                                 val selected = pagerState.currentPage == index
@@ -295,15 +295,15 @@ private fun HomeContent(
                                         .width(
                                             when {
                                                 selected && hero.size > 12 -> 14.dp
-                                                selected -> 22.dp
+                                                selected -> 24.dp
                                                 hero.size > 12 -> 7.dp
                                                 else -> 10.dp
                                             }
                                         )
                                         .clip(RoundedCornerShape(3.dp))
                                         .background(
-                                            if (selected) NotflixColors.Accent
-                                            else Color.White.copy(alpha = 0.28f)
+                                            if (selected) NotflixColors.AccentSoft
+                                            else Color.White.copy(alpha = 0.34f)
                                         )
                                         .pointerInput(index) {
                                             detectTapGestures {
@@ -574,9 +574,10 @@ private fun HeroPanel(
                 .fillMaxSize()
                 .background(
                     Brush.verticalGradient(
-                        0f to Color.Transparent,
-                        0.55f to Color.Transparent,
-                        1f to NotflixColors.Bg
+                        0f to Color.Black.copy(alpha = 0.10f),
+                        0.38f to Color.Transparent,
+                        0.72f to Color.Black.copy(alpha = 0.48f),
+                        1f to NotflixColors.Bg.copy(alpha = 0.98f)
                     )
                 )
         )
@@ -592,11 +593,12 @@ private fun HeroPanel(
                     .padding(end = if (tv) 54.dp else 18.dp, bottom = if (tv) 26.dp else 14.dp)
                     .width(if (tv) 168.dp else 104.dp)
                     .aspectRatio(2f / 3f)
-                    .clip(RoundedCornerShape(12.dp))
+                    .clip(RoundedCornerShape(18.dp))
+                    .graphicsLayer { shadowElevation = if (tv) 20.dp.toPx() else 12.dp.toPx() }
                     .border(
-                        1.dp,
-                        Color.White.copy(alpha = 0.12f),
-                        RoundedCornerShape(12.dp)
+                        1.25.dp,
+                        Color.White.copy(alpha = 0.22f),
+                        RoundedCornerShape(18.dp)
                     )
             )
         }
@@ -607,15 +609,15 @@ private fun HeroPanel(
                 .padding(
                     start = screenPadding(),
                     end = 12.dp,
-                    bottom = if (tv) 46.dp else 28.dp
+                    bottom = if (tv) 52.dp else 34.dp
                 )
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(NotflixColors.Accent)
-                        .padding(horizontal = 7.dp, vertical = 2.dp)
+                        .clip(RoundedCornerShape(50))
+                        .background(NotflixColors.Accent.copy(alpha = 0.92f))
+                        .padding(horizontal = 10.dp, vertical = 5.dp)
                 ) {
                     Text(
                         text = if (slide.type == MediaType.MOVIE) "FİLM" else "DİZİ",
@@ -649,27 +651,30 @@ private fun HeroPanel(
                         fontSize = 12.sp
                     )
                 }
+                if (slide.genres.isNotBlank()) {
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(50))
+                            .background(Color.Black.copy(alpha = 0.38f))
+                            .border(1.dp, Color.White.copy(alpha = 0.16f), RoundedCornerShape(50))
+                            .padding(horizontal = 9.dp, vertical = 4.dp)
+                    ) {
+                        Text(slide.genres.substringBefore(',').trim(), color = Color.White.copy(alpha = 0.92f),
+                            fontSize = 10.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+                    }
+                }
             }
-            Spacer(modifier = Modifier.height(if (tv) 12.dp else 7.dp))
+            Spacer(modifier = Modifier.height(if (tv) 14.dp else 9.dp))
             Text(
                 text = slide.title,
                 style = if (tv) MaterialTheme.typography.displayMedium
                 else MaterialTheme.typography.displaySmall,
                 color = Color.White,
                 maxLines = 2,
-                overflow = TextOverflow.Ellipsis
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.graphicsLayer { shadowElevation = 10.dp.toPx() }
             )
-            if (slide.genres.isNotBlank()) {
-                Spacer(modifier = Modifier.height(5.dp))
-                Text(
-                    text = slide.genres,
-                    color = NotflixColors.AccentSoft,
-                    fontSize = if (tv) 13.sp else 11.sp,
-                    fontWeight = FontWeight.Medium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
             if (description.isNotBlank()) {
                 Spacer(modifier = Modifier.height(if (tv) 10.dp else 7.dp))
                 Text(

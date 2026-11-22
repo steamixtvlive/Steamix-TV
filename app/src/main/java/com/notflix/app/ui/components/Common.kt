@@ -159,7 +159,10 @@ fun NotflixTopBar(
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color(0xF20A0A0A))
+            .padding(horizontal = if (tv) 18.dp else 10.dp, vertical = if (tv) 10.dp else 6.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .background(Brush.verticalGradient(listOf(Color(0xF51A1A1A), Color(0xEE080808))))
+            .border(1.dp, Color.White.copy(alpha = 0.10f), RoundedCornerShape(20.dp))
     ) {
         // Sekmeler sigmazsa kaydirma oklari gosterilir.
         val available = maxWidth - (if (tv) 320.dp else 210.dp)
@@ -167,8 +170,8 @@ fun NotflixTopBar(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(if (tv) 68.dp else 58.dp)
-                .padding(horizontal = pad),
+                .height(if (tv) 72.dp else 58.dp)
+                .padding(horizontal = if (tv) 20.dp else 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             var logoFocused by remember { mutableStateOf(false) }
@@ -182,7 +185,7 @@ fun NotflixTopBar(
             ) {
                 NotflixWordmark(width = if (tv) 104.dp else 72.dp, glow = true)
             }
-            Spacer(modifier = Modifier.width(if (tv) 28.dp else 12.dp))
+            Spacer(modifier = Modifier.width(if (tv) 24.dp else 9.dp))
             if (overflow) {
                 OverflowArrow(
                     icon = Icons.Filled.KeyboardArrowLeft,
@@ -196,7 +199,7 @@ fun NotflixTopBar(
                     .weight(1f)
                     .horizontalScroll(tabScroll),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(if (tv) 22.dp else 4.dp)
+                horizontalArrangement = Arrangement.spacedBy(if (tv) 10.dp else 3.dp)
             ) {
                 tabs.forEach { tab ->
                     TopTab(
@@ -222,13 +225,6 @@ fun NotflixTopBar(
             Spacer(modifier = Modifier.width(2.dp))
             IconAction(Icons.Outlined.PowerSettingsNew, "Uygulamadan çık", onExit)
         }
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .height(1.dp)
-                .background(Color.White.copy(alpha = 0.06f))
-        )
     }
 }
 
@@ -269,7 +265,7 @@ private fun OverflowArrow(
 @Composable
 private fun TopTab(label: String, selected: Boolean, onClick: () -> Unit) {
     var focused by remember { mutableStateOf(false) }
-    val shape = RoundedCornerShape(8.dp)
+    val shape = RoundedCornerShape(50)
     val textColor by animateColorAsState(
         targetValue = when {
             selected -> Color.White
@@ -287,27 +283,26 @@ private fun TopTab(label: String, selected: Boolean, onClick: () -> Unit) {
             .background(
                 when {
                     // Secili sekme koyu kirmizi zeminle net gorunsun.
-                    selected -> NotflixColors.Accent.copy(alpha = 0.26f)
-                    focused -> NotflixColors.Accent.copy(alpha = 0.18f)
-                    else -> Color.Transparent
+                    focused -> Color.White.copy(alpha = 0.12f)
+                    selected -> NotflixColors.Accent.copy(alpha = 0.92f)
+                    else -> Color.White.copy(alpha = 0.035f)
                 }
             )
             .border(
                 width = when {
-                    focused -> 1.5.dp
-                    selected -> 1.dp
-                    else -> 0.dp
+                    focused -> 2.dp
+                    else -> 1.dp
                 },
                 color = when {
-                    focused -> NotflixColors.AccentSoft
-                    selected -> NotflixColors.Accent.copy(alpha = 0.75f)
-                    else -> Color.Transparent
+                    focused -> Color.White
+                    selected -> NotflixColors.AccentSoft.copy(alpha = 0.85f)
+                    else -> Color.White.copy(alpha = 0.06f)
                 },
                 shape = shape
             )
             .onFocusChanged { focused = it.isFocused }
             .clickable(onClick = onClick)
-            .padding(horizontal = if (isTvLayout()) 10.dp else 8.dp, vertical = 7.dp),
+            .padding(horizontal = if (isTvLayout()) 16.dp else 12.dp, vertical = if (isTvLayout()) 10.dp else 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
@@ -318,15 +313,6 @@ private fun TopTab(label: String, selected: Boolean, onClick: () -> Unit) {
             maxLines = 1
         )
         Spacer(modifier = Modifier.height(4.dp))
-        Box(
-            modifier = Modifier
-                .width(if (selected) 26.dp else 0.dp)
-                .height(3.dp)
-                .clip(RoundedCornerShape(2.dp))
-                .background(
-                    if (selected) NotflixColors.Accent else Color.Transparent
-                )
-        )
     }
 }
 
@@ -406,8 +392,8 @@ fun PosterGrid(
         columns = GridCells.Adaptive(minCellWidth),
         modifier = modifier.fillMaxSize().focusGroup(),
         contentPadding = contentPadding,
-        horizontalArrangement = Arrangement.spacedBy(if (isTvLayout()) 14.dp else 10.dp),
-        verticalArrangement = Arrangement.spacedBy(if (isTvLayout()) 18.dp else 14.dp)
+        horizontalArrangement = Arrangement.spacedBy(if (isTvLayout()) 16.dp else 11.dp),
+        verticalArrangement = Arrangement.spacedBy(if (isTvLayout()) 20.dp else 16.dp)
     ) {
         items(items, key = { it.url }) { card ->
             PosterCard(
@@ -471,7 +457,7 @@ fun PosterCard(
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(if (pressed) 0.975f else 1f, label = "posterScale")
-    val shape = RoundedCornerShape(11.dp)
+    val shape = RoundedCornerShape(20.dp)
 
     Column(
         modifier = modifier
@@ -488,9 +474,8 @@ fun PosterCard(
                 .clip(shape)
                 .background(NotflixColors.Card)
                 .border(
-                    // Odak vurgusu kirmizi ve net olsun: secilen poster hemen anlasilsin.
                     width = if (focused) 3.dp else 1.dp,
-                    color = if (focused) NotflixColors.Accent else Color.White.copy(alpha = 0.08f),
+                    color = if (focused) NotflixColors.AccentSoft else Color.White.copy(alpha = 0.13f),
                     shape = shape
                 )
         ) {
@@ -729,7 +714,7 @@ fun MediaRow(
         LazyRow(
             modifier = Modifier.focusGroup(),
             contentPadding = PaddingValues(horizontal = screenPadding()),
-            horizontalArrangement = Arrangement.spacedBy(if (isTvLayout()) 14.dp else 10.dp)
+            horizontalArrangement = Arrangement.spacedBy(if (isTvLayout()) 16.dp else 11.dp)
         ) {
             itemsIndexed(items, key = { _, card -> card.url }) { index, card ->
                 PosterCard(
@@ -784,15 +769,15 @@ fun LiveChannelCard(
     ) {
         Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .height(if (isTvLayout()) 104.dp else 88.dp)
-                .clip(shape)
-                .background(NotflixColors.Card)
-                .border(
-                    if (focused) 2.5.dp else 1.dp,
-                    if (focused) Color.White else Color.White.copy(alpha = 0.07f),
-                    shape
-                ),
+            .fillMaxWidth()
+            .height(if (isTvLayout()) 112.dp else 94.dp)
+            .clip(shape)
+            .background(Brush.linearGradient(listOf(Color(0xFF202020), NotflixColors.Card, Color(0xFF111111))))
+            .border(
+                if (focused) 2.5.dp else 1.dp,
+                if (focused) NotflixColors.AccentSoft else Color.White.copy(alpha = 0.11f),
+                shape
+            ),
             contentAlignment = Alignment.Center
         ) {
             Box(

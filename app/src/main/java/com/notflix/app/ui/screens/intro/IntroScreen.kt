@@ -104,11 +104,7 @@ private val pages = listOf(
         "Yukarı/aşağı ile menüler arasında gezin, sağa/sola ile içerikte ilerle. Yazı alanında sıkışmaz, ok tuşuyla çıkarsın.",
         "KUMANDA"
     ),
-    IntroPage(
-        "Kitaplığın senin",
-        "Favoriler, izleme geçmişi ve devam edenler tek yerde. Kaldığın yerden devam edersin.",
-        "KİTAPLIK"
-    ),
+
     IntroPage(
         "Artık hazırsın",
         "Kumandayla yönet, dokunmatikle kaydır, hepsini tek ekrandan izle. NOTFLİX iyi seyirler diler.",

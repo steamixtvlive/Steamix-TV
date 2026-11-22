@@ -18,6 +18,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -76,6 +79,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -97,6 +101,7 @@ import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -143,10 +148,14 @@ import com.notflix.app.ui.components.NotflixButton
 import com.notflix.app.ui.components.VolumeHud
 import com.notflix.app.ui.components.isTvLayout
 import com.notflix.app.ui.theme.NotflixColors
+import kotlin.math.abs
+import kotlin.math.max
 import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 
@@ -161,6 +170,7 @@ fun PlayerScreen(
     nextEpisodeTitle: String? = null,
     onNextEpisode: (String, String) -> Unit = { _, _ -> },
     inPipMode: Boolean = false,
+    favoriteUrls: Set<String> = emptySet(),
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
@@ -220,6 +230,8 @@ fun PlayerScreen(
             .setReadTimeoutMs(20_000)
             .setAllowCrossProtocolRedirects(true)
             .apply {
+                // M3U dogrudan akislarinda NOTFLIX kaynak basliklari gonderilmez;
+                // bazi saglayicilar yabanci Origin/Referer gorunce baglantiyi kesiyor.
                 if (!isLive) {
                     setDefaultRequestProperties(
                         mapOf("Referer" to pageUrl, "Origin" to ORIGIN)
@@ -301,7 +313,9 @@ fun PlayerScreen(
     var selectedAudioTrack by remember { mutableIntStateOf(-1) }
     var selectedTextTrack by remember { mutableIntStateOf(-1) }
     var subtitlesEnabled by remember(pageUrl, liveUrl) { mutableStateOf(false) }
+    var subtitleScale by remember { mutableStateOf(app.settings.subtitleScale) }
     var preferredSubtitleApplied by remember(pageUrl, liveUrl) { mutableStateOf(false) }
+    var preferredAudioApplied by remember(pageUrl, liveUrl) { mutableStateOf(false) }
     var subtitleChoiceMade by remember(pageUrl, liveUrl) { mutableStateOf(false) }
     // Altyazi dosyalarini ExoPlayer'a vermek yerine kendimiz okuyup ciziyoruz.
     // (Media3 1.7, ham VTT/SRT'yi "legacy decoding" kapali oldugu icin reddediyor.)
@@ -315,7 +329,12 @@ fun PlayerScreen(
     var speedNotice by remember { mutableStateOf<String?>(null) }
     // 10 saniye ileri / geri.
     val seekStepSeconds = 10
+    // Tus basili tutuldugunda 10 sn'lik adimlarla surekli sarma.
+    val holdScope = rememberCoroutineScope()
+    var seekHoldJob by remember { mutableStateOf<Job?>(null) }
+    var seekHoldActive by remember { mutableStateOf(false) }
     var hintText by remember { mutableStateOf<String?>(null) }
+    var seekAccumulatedSeconds by remember { mutableStateOf(0) }
     // Kullaniciya gosterilen kisa ipucu (orn. "Kontrolleri acmak icin OK tusuna basiniz").
     fun showHint(text: String) {
         hintText = text
@@ -376,6 +395,30 @@ fun PlayerScreen(
         subtitlesEnabled = true
         preferredSubtitleApplied = true
         android.util.Log.d("NotflixSub", "selectPreferredSubtitle: ${preferred.label} (id=${preferred.id})")
+    }
+
+    /**
+     * M3U / gömülü kaynaklarda Türkçe ses izi varsa varsayılan olarak seçilir.
+     * Kullanıcı daha sonra ses menüsünden istediği izi seçebilir.
+     */
+    fun selectPreferredAudio(options: List<PlaybackTrackOption>) {
+        if (preferredAudioApplied || options.size < 2) return
+        val preferred = options.firstOrNull { option ->
+            val language = option.language.orEmpty().lowercase()
+            language.startsWith("tr") || language == "tur" ||
+                option.label.contains("turk", ignoreCase = true) ||
+                option.label.contains("türk", ignoreCase = true)
+        } ?: return
+        preferredAudioApplied = true
+        if (preferred.selected) return
+        trackSelector.setParameters(
+            trackSelector.buildUponParameters()
+                .clearOverridesOfType(C.TRACK_TYPE_AUDIO)
+                .addOverride(TrackSelectionOverride(preferred.group.mediaTrackGroup, preferred.groupTrackIndex))
+                .build()
+        )
+        selectedAudioTrack = preferred.id
+        android.util.Log.d("NotflixAudio", "selectPreferredAudio: ${preferred.label} (id=${preferred.id})")
     }
 
     DisposableEffect(activity, pageUrl) {
@@ -462,7 +505,7 @@ fun PlayerScreen(
                 if (playbackState == Player.STATE_READY) {
                     errorText = null
                     channelSwitchPending = false
-                    if (!preferredSubtitleApplied && textTracks.isNotEmpty()) selectPreferredSubtitle(textTracks)
+                    // Altyazi varsayilan olarak kapali; otomatik secim yapilmaz.
                     // Altyazi secimi bazen STATE_READY'de tam uygulanmamis olabiliyor;
                     // hazir oldugunda secili track'i yeniden uygular.
                     if (subtitlesEnabled && selectedTextTrack >= 0) {
@@ -495,20 +538,20 @@ fun PlayerScreen(
                 textTracks = nextTextTracks
                 android.util.Log.d("NotflixSub", "onTracksChanged: textTracks=${nextTextTracks.size} audioTracks=${nextAudioTracks.size}")
                 if (nextTextTracks.isNotEmpty()) subtitleWarning = null
-                selectedAudioTrack = nextAudioTracks.firstOrNull { it.selected }?.id
+                if (!preferredAudioApplied && nextAudioTracks.isNotEmpty()) {
+                    selectPreferredAudio(nextAudioTracks)
+                }
+                selectedAudioTrack = nextAudioTracks.firstOrNull { it.id == selectedAudioTrack }?.id
+                    ?: nextAudioTracks.firstOrNull { it.selected }?.id
                     ?: nextAudioTracks.firstOrNull()?.id
                     ?: -1
                 val selectedText = nextTextTracks.firstOrNull { it.selected }?.id
                 if (selectedText != null) {
                     selectedTextTrack = selectedText
-                    subtitlesEnabled = true
-                } else if (nextTextTracks.isEmpty()) {
+                } else {
                     selectedTextTrack = -1
-                    if (!subtitleChoiceMade) subtitlesEnabled = false
                 }
-                if (!preferredSubtitleApplied && nextTextTracks.isNotEmpty()) {
-                    selectPreferredSubtitle(nextTextTracks)
-                }
+                if (!subtitleChoiceMade) subtitlesEnabled = false
                 val heights = tracks.groups
                     .filter { it.type == C.TRACK_TYPE_VIDEO }
                     .flatMap { group ->
@@ -559,6 +602,7 @@ fun PlayerScreen(
         subtitleTrackLabels = emptyList()
         subtitleWarning = null
         preferredSubtitleApplied = false
+        preferredAudioApplied = false
         subtitleChoiceMade = false
         resolvedPlayback = null
         val info: PlayInfo? = if (isLive) {
@@ -647,12 +691,9 @@ fun PlayerScreen(
         } else {
             subtitleWarning = null
             if (!subtitleChoiceMade) {
-                selectedSubtitleIndex = loadedSubtitleOptions.indexOfFirst { option ->
-                    val lang = option.language.orEmpty().lowercase()
-                    lang.startsWith("tr") ||
-                        option.label.contains("türk", ignoreCase = true) ||
-                        option.label.contains("turk", ignoreCase = true)
-                }.let { if (it >= 0) it else 0 }
+                // Varsayilan: kapali. Kullanici altyazi menusunden acar.
+                selectedSubtitleIndex = -1
+                subtitlesEnabled = false
             }
         }
         android.util.Log.d(
@@ -878,8 +919,36 @@ fun PlayerScreen(
 
     fun seekWithStep(direction: Int) {
         seekBy(seekStepSeconds * 1_000L * direction)
-        hintText = "${if (direction < 0) "−" else "+"}${seekStepSeconds} sn"
+        seekAccumulatedSeconds += direction * seekStepSeconds
+        val sign = if (seekAccumulatedSeconds >= 0) "+" else ""
+        hintText = "${sign}${seekAccumulatedSeconds} sn · ${formatTime(positionMs)}"
         flashCenterSeek(if (direction < 0) "rewind" else "forward")
+    }
+
+    fun stopSeekHold() {
+        seekHoldJob?.cancel()
+        seekHoldJob = null
+        seekHoldActive = false
+        seekAccumulatedSeconds = 0
+    }
+
+    /**
+     * Kumanda/klavye tusu basili tutuldugunda once tek adim (10 sn) sarar,
+     * ardindan tus birakilana kadar 10 sn'lik adimlarla devam eder.
+     */
+    fun startSeekHold(direction: Int) {
+        if (isLive) return
+        seekAccumulatedSeconds = 0
+        seekWithStep(direction)
+        seekHoldJob?.cancel()
+        seekHoldActive = true
+        seekHoldJob = holdScope.launch {
+            delay(420)
+            while (isActive) {
+                seekWithStep(direction)
+                delay(360)
+            }
+        }
     }
 
     fun zap(delta: Int) {
@@ -922,22 +991,26 @@ fun PlayerScreen(
     // Activity seviyesinde yakalanır: odak kaybolsa, kontroller gizli
     // olsa da ok tuşları, OK tuşu ve kanal tuşları her zaman çalışır.
     DisposableEffect(isLive, channels.size, panelOpen, qualityOpen, languageMenuOpen, subtitleMenuOpen, controlsVisible) {
-        val handler: (Int) -> Boolean = { keyCode ->
+        val handler: (Int, Int, Int) -> Boolean = { keyCode, action, repeatCount ->
+            val down = action == android.view.KeyEvent.ACTION_DOWN
+            val up = action == android.view.KeyEvent.ACTION_UP
             when {
                 panelOpen || qualityOpen || languageMenuOpen || subtitleMenuOpen -> when (keyCode) {
                     android.view.KeyEvent.KEYCODE_BACK,
                     android.view.KeyEvent.KEYCODE_ESCAPE -> {
-                        panelOpen = false
-                        qualityOpen = false
-                        languageMenuOpen = false
-                        subtitleMenuOpen = false
+                        if (down) {
+                            panelOpen = false
+                            qualityOpen = false
+                            languageMenuOpen = false
+                            subtitleMenuOpen = false
+                        }
                         true
                     }
                     // Panel acikken kumandanin ozel kanal tuslari yine de
                     // kanal degistirir (menude gezinmeyi engellemez).
                     android.view.KeyEvent.KEYCODE_CHANNEL_UP,
                     android.view.KeyEvent.KEYCODE_MEDIA_NEXT -> {
-                        if (isLive && channels.size > 1) {
+                        if (down && isLive && channels.size > 1) {
                             zap(1)
                             true
                         } else {
@@ -946,7 +1019,7 @@ fun PlayerScreen(
                     }
                     android.view.KeyEvent.KEYCODE_CHANNEL_DOWN,
                     android.view.KeyEvent.KEYCODE_MEDIA_PREVIOUS -> {
-                        if (isLive && channels.size > 1) {
+                        if (down && isLive && channels.size > 1) {
                             zap(-1)
                             true
                         } else {
@@ -959,7 +1032,7 @@ fun PlayerScreen(
                     android.view.KeyEvent.KEYCODE_DPAD_UP -> {
                         // Kontroller acikken ok tuslari kontrollerde gezinir;
                         // tam ekranda (kontroller gizli) kanal degistirir.
-                        if (isLive && channels.size > 1 && !controlsVisible) {
+                        if (down && isLive && channels.size > 1 && !controlsVisible) {
                             zap(1)
                             true
                         } else {
@@ -967,7 +1040,7 @@ fun PlayerScreen(
                         }
                     }
                     android.view.KeyEvent.KEYCODE_DPAD_DOWN -> {
-                        if (isLive && channels.size > 1 && !controlsVisible) {
+                        if (down && isLive && channels.size > 1 && !controlsVisible) {
                             zap(-1)
                             true
                         } else {
@@ -976,7 +1049,7 @@ fun PlayerScreen(
                     }
                     android.view.KeyEvent.KEYCODE_CHANNEL_UP,
                     android.view.KeyEvent.KEYCODE_MEDIA_NEXT -> {
-                        if (isLive && channels.size > 1) {
+                        if (down && isLive && channels.size > 1) {
                             zap(1)
                             true
                         } else {
@@ -985,7 +1058,7 @@ fun PlayerScreen(
                     }
                     android.view.KeyEvent.KEYCODE_CHANNEL_DOWN,
                     android.view.KeyEvent.KEYCODE_MEDIA_PREVIOUS -> {
-                        if (isLive && channels.size > 1) {
+                        if (down && isLive && channels.size > 1) {
                             zap(-1)
                             true
                         } else {
@@ -994,11 +1067,41 @@ fun PlayerScreen(
                     }
                     android.view.KeyEvent.KEYCODE_DPAD_RIGHT -> {
                         if (!controlsVisible) {
-                            if (isLive && channels.size > 1) {
-                                openChannelPanel()
+                            if (down) {
+                                when {
+                                    isLive && channels.size > 1 -> {
+                                        openChannelPanel()
+                                        true
+                                    }
+                                    !isLive -> {
+                                        if (repeatCount == 0) startSeekHold(1)
+                                        true
+                                    }
+                                    else -> false
+                                }
+                            } else if (up && seekHoldActive) {
+                                stopSeekHold()
                                 true
-                            } else if (!isLive) {
-                                seekWithStep(1)
+                            } else {
+                                false
+                            }
+                        } else {
+                            false
+                        }
+                    }
+                    android.view.KeyEvent.KEYCODE_DPAD_LEFT -> {
+                        if (!controlsVisible) {
+                            if (down) {
+                                if (!isLive) {
+                                    // Kontroller gizliyken sol ok: 10 sn geri.
+                                    if (repeatCount == 0) startSeekHold(-1)
+                                    true
+                                } else {
+                                    controlsVisible = true
+                                    true
+                                }
+                            } else if (up && seekHoldActive) {
+                                stopSeekHold()
                                 true
                             } else {
                                 false
@@ -1011,7 +1114,7 @@ fun PlayerScreen(
                     android.view.KeyEvent.KEYCODE_ENTER,
                     android.view.KeyEvent.KEYCODE_NUMPAD_ENTER,
                     android.view.KeyEvent.KEYCODE_SPACE -> {
-                        if (!controlsVisible) {
+                        if (down && !controlsVisible) {
                             if (isLive) {
                                 controlsVisible = true
                             } else {
@@ -1024,54 +1127,66 @@ fun PlayerScreen(
                             false
                         }
                     }
-                    android.view.KeyEvent.KEYCODE_DPAD_LEFT -> {
-                        if (!controlsVisible) {
-                            if (!isLive) {
-                                // Kontroller gizliyken sol ok: 10 sn geri.
-                                seekWithStep(-1)
-                                true
-                            } else {
-                                controlsVisible = true
-                                true
-                            }
-                        } else {
-                            false
-                        }
-                    }
-                    // Medya tuslari: hizli sarma / geri sarma (kumanda ve klavye)
+                    // Medya tuslari: basili tutunca hizli sarma / geri sarma.
                     android.view.KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> {
                         if (!isLive) {
-                            seekWithStep(1)
-                            true
+                            if (down) {
+                                if (repeatCount == 0) startSeekHold(1)
+                                true
+                            } else if (up && seekHoldActive) {
+                                stopSeekHold()
+                                true
+                            } else {
+                                false
+                            }
                         } else {
                             false
                         }
                     }
                     android.view.KeyEvent.KEYCODE_MEDIA_REWIND -> {
                         if (!isLive) {
-                            seekWithStep(-1)
-                            true
+                            if (down) {
+                                if (repeatCount == 0) startSeekHold(-1)
+                                true
+                            } else if (up && seekHoldActive) {
+                                stopSeekHold()
+                                true
+                            } else {
+                                false
+                            }
                         } else {
                             false
                         }
                     }
                     android.view.KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
                     android.view.KeyEvent.KEYCODE_MEDIA_PLAY -> {
-                        togglePlay()
-                        flashCenterSeek("playpause")
-                        true
+                        if (down) {
+                            togglePlay()
+                            flashCenterSeek("playpause")
+                            true
+                        } else {
+                            false
+                        }
                     }
                     android.view.KeyEvent.KEYCODE_MEDIA_STOP -> {
-                        controlsVisible = true
-                        true
+                        if (down) {
+                            controlsVisible = true
+                            true
+                        } else {
+                            false
+                        }
                     }
                     else -> false
                 }
             }
         }
         PlayerKeyBus.register(handler)
-        onDispose { PlayerKeyBus.unregister(handler) }
+        onDispose {
+            PlayerKeyBus.unregister(handler)
+            stopSeekHold()
+        }
     }
+
 
     fun applyQuality(height: Int?) {
         qualityHeight = height
@@ -1396,8 +1511,8 @@ fun PlayerScreen(
                 Text(
                     text = activeSubtitleText,
                     color = Color.White,
-                    fontSize = if (tvUi) 24.sp else 18.sp,
-                    lineHeight = if (tvUi) 31.sp else 24.sp,
+                    fontSize = ((if (tvUi) 24f else 18f) * subtitleScale / 100f).sp,
+                    lineHeight = ((if (tvUi) 31f else 24f) * subtitleScale / 100f).sp,
                     fontWeight = FontWeight.Medium,
                     textAlign = TextAlign.Center,
                     modifier = Modifier
@@ -1411,8 +1526,76 @@ fun PlayerScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .pointerInput(panelOpen) {
-                    detectTapGestures { if (!panelOpen) controlsVisible = !controlsVisible }
+                .pointerInput(panelOpen, isLive, pageUrl) {
+                    if (panelOpen) return@pointerInput
+                    if (isLive) {
+                        // Canli TV: dikey kaydirma ile kanal degistir,
+                        // tek dokunus kontrolleri ac/kapat.
+                        awaitEachGesture {
+                            val down = awaitFirstDown(requireUnconsumed = false)
+                            var totalDy = 0f
+                            var maxAbsDy = 0f
+                            val slop = 26.dp.toPx()
+                            while (true) {
+                                val event = awaitPointerEvent()
+                                val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                                if (change.pressed) {
+                                    totalDy += change.positionChange().y
+                                    maxAbsDy = max(maxAbsDy, abs(totalDy))
+                                    if (maxAbsDy > slop) change.consume()
+                                } else {
+                                    break
+                                }
+                            }
+                            if (maxAbsDy < slop) {
+                                controlsVisible = !controlsVisible
+                            } else {
+                                if (totalDy < 0) {
+                                    // Yukari kaydirma: sonraki kanal.
+                                    zap(1)
+                                } else {
+                                    // Asagi kaydirma: onceki kanal.
+                                    zap(-1)
+                                }
+                            }
+                        }
+                    } else {
+                        // Film/dizi: sol/sag tarafa cift dokunus 10 sn geri/ileri
+                        // sarar. Parmak kaldirilmazsa sarma devam eder.
+                        awaitEachGesture {
+                            val firstDown = awaitFirstDown(requireUnconsumed = false)
+                            val firstUp = withTimeoutOrNull(200) {
+                                waitForUpOrCancellation()
+                            }
+                            if (firstUp == null) {
+                                // Basili tutma tek dokunus sayilmaz.
+                                waitForUpOrCancellation()
+                                return@awaitEachGesture
+                            }
+                            val secondDown = withTimeoutOrNull(290) {
+                                awaitFirstDown(requireUnconsumed = false)
+                            }
+                            if (secondDown == null) {
+                                // Tek dokunus: kontrolleri ac/kapat.
+                                controlsVisible = !controlsVisible
+                                return@awaitEachGesture
+                            }
+                            val side = if (secondDown.position.x > size.width / 2f) 1 else -1
+                            seekAccumulatedSeconds = 0
+                            seekWithStep(side)
+                            // Cift dokunustan sonra parmak basili tutulursa
+                            // 10 sn'lik adimlarla sarmaya devam et.
+                            var up = withTimeoutOrNull(170) {
+                                waitForUpOrCancellation()
+                            }
+                            while (up == null) {
+                                seekWithStep(side)
+                                up = withTimeoutOrNull(380) {
+                                    waitForUpOrCancellation()
+                                }
+                            }
+                        }
+                    }
                 }
         )
 
@@ -1956,6 +2139,7 @@ fun PlayerScreen(
                 channels = channels,
                 currentIndex = index,
                 focusRequester = panelFocus,
+                favoriteUrls = favoriteUrls,
                 onSelect = { selected ->
                     index = selected
                     // Kanal secildiginde panel acik kaliyor; kapatmak icin
@@ -2002,6 +2186,11 @@ fun PlayerScreen(
                 options = subtitleOptions,
                 selectedIndex = selectedSubtitleIndex,
                 warning = subtitleWarning,
+                scale = subtitleScale,
+                onScaleChange = { value ->
+                    subtitleScale = value
+                    app.settings.subtitleScale = value
+                },
                 onSelect = { index ->
                     subtitleChoiceMade = true
                     selectedSubtitleIndex = index
@@ -2163,32 +2352,42 @@ private fun ChannelPanel(
     channels: List<LiveChannel>,
     currentIndex: Int,
     focusRequester: FocusRequester,
+    favoriteUrls: Set<String> = emptySet(),
     onSelect: (Int) -> Unit,
     onClose: () -> Unit
 ) {
     val tv = LocalConfiguration.current.smallestScreenWidthDp >= 600
-    // Panel acildiginda su an oynayan kanalin grubu secili olsun; boyce
-    // listede "Tumü" ilk sirada bekleyip ilk Ulusal kanali acilmaz.
-    val currentGroup = channels.getOrNull(currentIndex)?.group?.takeIf { it.isNotBlank() } ?: "Tümü"
+    val hasFavorites = channels.any { it.url in favoriteUrls }
+    // Kanal favorilerdeyse panel dogrudan Favoriler grubuyla acilir.
+    val currentIsFavorite = channels.getOrNull(currentIndex)?.url?.let { it in favoriteUrls } == true
+    val currentGroup = when {
+        currentIsFavorite && hasFavorites -> "Favoriler"
+        else -> channels.getOrNull(currentIndex)?.group?.takeIf { it.isNotBlank() } ?: "Tümü"
+    }
     var group by remember { mutableStateOf(currentGroup) }
     // Kullanici elle bir grup secerse secim korunur (kanal degisse de).
     var groupPinned by remember { mutableStateOf(false) }
     LaunchedEffect(currentGroup) {
         if (!groupPinned) group = currentGroup
     }
-    val groups = remember(channels) {
+    val groups = remember(channels, favoriteUrls) {
         val preferred = listOf(
             "Ulusal", "Haber", "Spor", "Sinema & Dizi", "Belgesel",
             "Çocuk", "Müzik", "Yaşam", "Dini", "Avrupa"
         )
         val present = channels.map { it.group }.distinct()
         // "Tümü" sag panelin en sonunda olsun.
-        preferred.filter { it in present } +
+        val base = preferred.filter { it in present } +
             present.filter { it !in preferred }.sorted() + listOf("Tümü")
+        if (!hasFavorites) base else listOf("Favoriler") + base
     }
-    val filtered = remember(channels, group) {
+    val filtered = remember(channels, group, favoriteUrls) {
         channels.withIndex().filter { entry ->
-            group == "Tümü" || entry.value.group == group
+            when (group) {
+                "Favoriler" -> entry.value.url in favoriteUrls
+                "Tümü" -> true
+                else -> entry.value.group == group
+            }
         }
     }
     val selectedPos = filtered.indexOfFirst { it.index == currentIndex }.coerceAtLeast(0)
@@ -2716,6 +2915,8 @@ private fun SubtitleMenu(
     options: List<SubtitleOption>,
     selectedIndex: Int,
     warning: String?,
+    scale: Int,
+    onScaleChange: (Int) -> Unit,
     onSelect: (Int) -> Unit,
     onClose: () -> Unit
 ) {
@@ -2739,7 +2940,7 @@ private fun SubtitleMenu(
             "Kaynakta ${serverLabels.distinct().joinToString(" · ")} altyazısı var ancak dosya indirilemedi."
         else -> "Bu içerik için altyazı seçeneği bulunmuyor."
     }
-    SmallTrackMenu("ALTYAZILAR", rows, detail, onSelect, onClose)
+    SmallTrackMenu("ALTYAZILAR", rows, detail, onSelect, onClose, scale = scale, onScaleChange = onScaleChange)
 }
 
 private data class TrackMenuRow(val id: Int, val label: String, val language: String, val selected: Boolean)
@@ -2750,7 +2951,9 @@ private fun SmallTrackMenu(
     rows: List<TrackMenuRow>,
     emptyText: String?,
     onSelect: (Int) -> Unit,
-    onClose: () -> Unit
+    onClose: () -> Unit,
+    scale: Int? = null,
+    onScaleChange: ((Int) -> Unit)? = null
 ) {
     val firstRow = remember { FocusRequester() }
     LaunchedEffect(title, rows.size) {
@@ -2806,6 +3009,44 @@ private fun SmallTrackMenu(
                     .height(1.dp)
                     .background(Color.White.copy(alpha = 0.07f))
             )
+            if (scale != null && onScaleChange != null) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Yazı boyutu",
+                        color = NotflixColors.TextSecondary,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.weight(1f)
+                    )
+                    SizeStepButton(text = "-", onClick = {
+                        onScaleChange((scale - 10).coerceAtLeast(60))
+                    })
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "%$scale",
+                        color = Color.White,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.width(46.dp),
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    SizeStepButton(text = "+", onClick = {
+                        onScaleChange((scale + 10).coerceAtMost(240))
+                    })
+                }
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(1.dp)
+                        .background(Color.White.copy(alpha = 0.07f))
+                )
+            }
             Column(
                 modifier = Modifier
                     .heightIn(max = 360.dp)
@@ -3237,3 +3478,21 @@ private fun episodeFromUrl(url: String): Int =
 private const val ORIGIN = "https://abukzubuk3.vip"
 private const val USER_AGENT =
     "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36"
+
+
+@Composable
+private fun SizeStepButton(text: String, onClick: () -> Unit) {
+    var focused by remember { mutableStateOf(false) }
+    Box(
+        modifier = Modifier
+            .size(34.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(if (focused) NotflixColors.Accent else NotflixColors.Card)
+            .border(1.dp, if (focused) Color.White else NotflixColors.LineSoft, RoundedCornerShape(8.dp))
+            .onFocusChanged { focused = it.isFocused }
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(text = text, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+    }
+}

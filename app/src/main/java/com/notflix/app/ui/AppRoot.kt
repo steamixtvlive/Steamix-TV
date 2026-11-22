@@ -60,13 +60,13 @@ import com.notflix.app.ui.screens.collection.CollectionScreen
 import com.notflix.app.ui.screens.detail.DetailScreen
 import com.notflix.app.ui.screens.discover.DiscoverScreen
 import com.notflix.app.ui.screens.home.HomeScreen
-import com.notflix.app.ui.screens.intro.IntroScreen
 import com.notflix.app.ui.screens.library.ContinueScreen
 import com.notflix.app.ui.screens.library.LibraryScreen
 import com.notflix.app.ui.screens.live.LiveScreen
 import com.notflix.app.ui.screens.player.PlayerScreen
 import com.notflix.app.ui.screens.search.SearchScreen
 import com.notflix.app.ui.screens.settings.SettingsScreen
+import com.notflix.app.ui.screens.intro.IntroScreen
 import com.notflix.app.ui.screens.splash.SplashScreen
 import com.notflix.app.ui.screens.top.Top250Screen
 import com.notflix.app.ui.screens.update.UpdateGateScreen
@@ -180,10 +180,11 @@ fun AppRoot() {
     Box(modifier = Modifier.fillMaxSize()) {
         when (stage) {
             Stage.Splash -> SplashScreen(onDone = {
-                stage = if (app.settings.introSeen) Stage.Main else Stage.Intro
+                stage = if (app.settings.onboardingVersion >= 1) Stage.Main else Stage.Intro
             })
             Stage.Intro -> IntroScreen(onFinish = {
                 app.settings.introSeen = true
+                app.settings.onboardingVersion = 1
                 stage = Stage.Main
             })
             Stage.Main -> {
@@ -252,6 +253,7 @@ fun AppRoot() {
                                     liveChannels = liveChannels,
                                     liveIndex = screen.liveIndex,
                                     inPipMode = true,
+                                    favoriteUrls = liveFavorites,
                                     onBack = { back() }
                                 )
                             } else {
@@ -263,6 +265,7 @@ fun AppRoot() {
                                     liveIndex = screen.liveIndex,
                                     nextEpisodeUrl = screen.nextEpisodeUrl,
                                     nextEpisodeTitle = screen.nextEpisodeTitle,
+                                    favoriteUrls = liveFavorites,
                                     onNextEpisode = { url, title ->
                                         // Geri yigini buyutmeden ayni ekranda degis.
                                         if (stack.isNotEmpty()) {
@@ -376,7 +379,7 @@ fun AppRoot() {
                                 onReplayIntro = {
                                     openRoot(Screen.Home)
                                     stage = Stage.Intro
-                                }
+                                },
                             )
                             is Screen.Detail -> DetailScreen(
                                 url = screen.url,

@@ -131,8 +131,10 @@ fun DetailScreen(
     val view = androidx.compose.ui.platform.LocalView.current
     val latestHasDetail by rememberUpdatedState(detail != null)
     DisposableEffect(url) {
-        val handler: (Int) -> Boolean = { keyCode ->
-            if (latestHasDetail && !view.hasFocus()) {
+        val handler: (Int, Int, Int) -> Boolean = { keyCode, action, _ ->
+            if (action == android.view.KeyEvent.ACTION_DOWN &&
+                latestHasDetail && !view.hasFocus()
+            ) {
                 when (keyCode) {
                     android.view.KeyEvent.KEYCODE_DPAD_UP,
                     android.view.KeyEvent.KEYCODE_DPAD_DOWN,

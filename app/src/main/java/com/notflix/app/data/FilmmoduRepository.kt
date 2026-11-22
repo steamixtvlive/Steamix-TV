@@ -33,7 +33,9 @@ import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 
-class FilmmoduRepository {
+class FilmmoduRepository(
+    val baseUrl: String = DEFAULT_BASE
+) {
 
     private val appContext: android.content.Context
         get() = com.notflix.app.NotflixApplication.instance.applicationContext
@@ -83,7 +85,7 @@ class FilmmoduRepository {
 
     suspend fun home(force: Boolean = false): HomeData = withContext(Dispatchers.IO) {
         if (!force) homeCache.get()?.let { return@withContext it }
-        val doc = fetchDoc(BASE)
+        val doc = fetchDoc(baseUrl)
         val data = parseHome(doc)
         if (data.sections.isEmpty() && data.hero.isEmpty()) {
             throw IOException("Katalog okunamadı.")
@@ -93,7 +95,7 @@ class FilmmoduRepository {
     }
 
     suspend fun section(title: String): List<MediaCard> = withContext(Dispatchers.IO) {
-        runCatching { home() }.getOrNull()
+        runCatching { home(false) }.getOrNull()
             ?.sections
             ?.firstOrNull { it.title == title }
             ?.items
@@ -113,7 +115,7 @@ class FilmmoduRepository {
 
     suspend fun browse(type: MediaType, page: Int = 1, genre: String? = null): BrowsePage =
         withContext(Dispatchers.IO) {
-            val base = if (type == MediaType.MOVIE) "$BASE/filmler" else "$BASE/diziler"
+            val base = if (type == MediaType.MOVIE) "$baseUrl/filmler" else "$baseUrl/diziler"
             val url = if (genre.isNullOrBlank()) base else "$base?tur=$genre"
             listingPage(url, page, type)
         }
@@ -159,7 +161,7 @@ class FilmmoduRepository {
     }
 
     private suspend fun fetchSuggest(clean: String): SuggestResult {
-        val body = fetch("$BASE/ara/oneri?q=" + URLEncoder.encode(clean, "UTF-8"))
+        val body = fetch("$baseUrl/ara/oneri?q=" + URLEncoder.encode(clean, "UTF-8"))
         val root = runCatching { JSONObject(body) }.getOrNull()
             ?: return SuggestResult(emptyList(), emptyList())
         val media = mutableListOf<MediaCard>()
@@ -216,7 +218,7 @@ class FilmmoduRepository {
     fun indexKnown(cards: List<MediaCard>) = cards.forEach(::indexCard)
 
     suspend fun top250(): List<MediaCard> = withContext(Dispatchers.IO) {
-        val doc = fetchDoc("$BASE/imdb-top-250")
+        val doc = fetchDoc("$baseUrl/imdb-top-250")
         val ranked = mutableListOf<MediaCard>()
         for (script in doc.select("script[type=application/ld+json]")) {
             val raw = script.data()
@@ -252,10 +254,10 @@ class FilmmoduRepository {
     suspend fun recommend(
         type: MediaType?,
         genres: List<String>,
-        limit: Int = 36,
-        audio: String? = null,
-        subtitles: String? = null,
-        mood: String? = null
+        limit: Int,
+        audio: String?,
+        subtitles: String?,
+        mood: String?
     ): List<MediaCard> = withContext(Dispatchers.IO) {
         withTimeoutOrNull(22_000) {
             recommendInternal(type, genres, limit, audio, subtitles, mood)
@@ -283,7 +285,7 @@ class FilmmoduRepository {
         val collected = LinkedHashMap<String, MediaCard>()
         for (slug in slugs.take(4)) {
             runCatching {
-                val doc = fetchDoc("$BASE/tur/$slug")
+                val doc = fetchDoc("$baseUrl/tur/$slug")
                 val main = doc.selectFirst("main") ?: doc
                 parseCards(main)
             }.getOrDefault(emptyList())
@@ -294,7 +296,7 @@ class FilmmoduRepository {
             val moodUrls = HashSet<String>()
             for (slug in moodSlugs.take(4)) {
                 runCatching {
-                    val doc = fetchDoc("$BASE/tur/$slug")
+                    val doc = fetchDoc("$baseUrl/tur/$slug")
                     parseCards(doc.selectFirst("main") ?: doc)
                 }.getOrDefault(emptyList()).forEach { moodUrls += it.url }
             }
@@ -330,7 +332,7 @@ class FilmmoduRepository {
         if (fromHome.isNotEmpty()) return fromHome.take(limit)
         return runCatching {
             withTimeoutOrNull(6_000) {
-                val doc = fetchDoc("$BASE/kesfet")
+                val doc = fetchDoc("$baseUrl/kesfet")
                 parseCards(doc.selectFirst("main") ?: doc)
                     .filter { type == null || it.type == type }
                     .distinctBy { it.url }
@@ -413,7 +415,7 @@ class FilmmoduRepository {
 
     suspend fun search(query: String): List<MediaCard> = withContext(Dispatchers.IO) {
         val encoded = java.net.URLEncoder.encode(query, "UTF-8")
-        val doc = fetchDoc("$BASE/ara?q=$encoded")
+        val doc = fetchDoc("$baseUrl/ara?q=$encoded")
         val main = doc.selectFirst("main") ?: doc
         parseCards(main).distinctBy { it.url }
     }
@@ -1205,7 +1207,7 @@ class FilmmoduRepository {
             .header("User-Agent", "Notflix Android")
             .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
             .header("Accept-Language", "tr-TR,tr;q=0.9,en;q=0.7")
-            .header("Referer", referer ?: "$BASE/")
+            .header("Referer", referer ?: "$baseUrl/")
         val call = client.newCall(builder.build())
         cont.invokeOnCancellation { runCatching { call.cancel() } }
         call.enqueue(object : Callback {
@@ -1242,7 +1244,7 @@ class FilmmoduRepository {
     private fun absolute(url: String): String {
         val value = url.trim()
         if (value.isBlank() || value.startsWith("http")) return value
-        return if (value.startsWith("/")) BASE + value else "$BASE/$value"
+        return if (value.startsWith("/")) baseUrl + value else "$baseUrl/$value"
     }
 
     private fun isContentUrl(url: String) =
@@ -1369,7 +1371,7 @@ class FilmmoduRepository {
 
     companion object {
         private const val TAG = "NotflixCatalog"
-        private const val BASE = "https://abukzubuk3.vip"
+        const val DEFAULT_BASE = "https://abukzubuk3.vip"
     private const val TMDB_KEY = "21e3ff1da3bd38d1f167560193503c34"
         private const val YOUTUBE_API_KEY = "AIzaSyDAivPXYp-wdmN2AmL7HUXvf4wHP2o9dHQ"
         private const val TMDB_TOKEN =

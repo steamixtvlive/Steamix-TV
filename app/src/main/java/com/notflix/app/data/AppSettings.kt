@@ -34,6 +34,16 @@ class AppSettings(context: Context) {
         get() = prefs.getBoolean(KEY_INTRO_SEEN, false)
         set(value) = prefs.edit().putBoolean(KEY_INTRO_SEEN, value).apply()
 
+    /** Tanitim + kaynak seciminin en son tamamlandigi surum kodu. */
+    var onboardingVersion: Int
+        get() = prefs.getInt(KEY_ONBOARDING_VERSION, 0)
+        set(value) = prefs.edit().putInt(KEY_ONBOARDING_VERSION, value).apply()
+
+    /** Altyazi yazi boyutu yuzdesi (100 = varsayilan). */
+    var subtitleScale: Int
+        get() = prefs.getInt(KEY_SUBTITLE_SCALE, 100).coerceIn(60, 240)
+        set(value) = prefs.edit().putInt(KEY_SUBTITLE_SCALE, value.coerceIn(60, 240)).apply()
+
     var playerAspect: String
         get() = prefs.getString(KEY_ASPECT, "fit").orEmpty().ifBlank { "fit" }
         set(value) = prefs.edit().putString(KEY_ASPECT, value).apply()
@@ -203,6 +213,8 @@ class AppSettings(context: Context) {
     private companion object {
         const val KEY_RESUME = "resume_enabled"
         const val KEY_INTRO_SEEN = "intro_seen"
+        const val KEY_ONBOARDING_VERSION = "onboarding_version"
+        const val KEY_SUBTITLE_SCALE = "subtitle_scale"
         const val KEY_ASPECT = "player_aspect"
         const val KEY_LIVE_DECODER = "live_decoder"
         const val KEY_LIBRARY = "library_items"

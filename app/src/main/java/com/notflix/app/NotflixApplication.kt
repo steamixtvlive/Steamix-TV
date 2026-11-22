@@ -15,8 +15,9 @@ class NotflixApplication : Application(), ImageLoaderFactory {
 
     lateinit var settings: AppSettings
         private set
-    lateinit var content: FilmmoduRepository
+    lateinit var main: FilmmoduRepository
         private set
+    val content: FilmmoduRepository get() = main
     lateinit var live: LiveTvRepository
         private set
     lateinit var updates: UpdateRepository
@@ -26,7 +27,7 @@ class NotflixApplication : Application(), ImageLoaderFactory {
         super.onCreate()
         instance = this
         settings = AppSettings(this)
-        content = FilmmoduRepository()
+        main = FilmmoduRepository()
         live = LiveTvRepository(this)
         updates = UpdateRepository()
         MediaMetaStore.init(this)

@@ -94,9 +94,23 @@ class MainActivity : ComponentActivity() {
     // the app draws its own centered indicator instead.
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         val keyCode = event.keyCode
+        // Bazi Google TV kumandalari ve set-top-box kumandalari yon tuslerini
+        // SYSTEM_NAVIGATION_* koduyla gonderir; Compose bu kodlari tanimaz.
+        // Onleri DPAD_*'a cevirerek kumanda her cihazda ayni calisir.
+        val mapped = when (keyCode) {
+            KeyEvent.KEYCODE_BUTTON_A -> KeyEvent.KEYCODE_DPAD_CENTER
+            KeyEvent.KEYCODE_BUTTON_B -> KeyEvent.KEYCODE_BACK
+            KeyEvent.KEYCODE_SYSTEM_NAVIGATION_UP -> KeyEvent.KEYCODE_DPAD_UP
+            KeyEvent.KEYCODE_SYSTEM_NAVIGATION_DOWN -> KeyEvent.KEYCODE_DPAD_DOWN
+            KeyEvent.KEYCODE_SYSTEM_NAVIGATION_LEFT -> KeyEvent.KEYCODE_DPAD_LEFT
+            KeyEvent.KEYCODE_SYSTEM_NAVIGATION_RIGHT -> KeyEvent.KEYCODE_DPAD_RIGHT
+            else -> 0
+        }
         // Oynatıcı ekranı varsa kumanda/klavye tuşları odaktan bağımsız
         // burada yakalanır; kontroller gizli olsa bile tuşlar çalışır.
-        if (event.action == KeyEvent.ACTION_DOWN && PlayerKeyBus.dispatch(keyCode)) {
+        // Basma, bırakma ve tekrar sayacı aynen iletilir (basılı tutarak sarma).
+        val effective = if (mapped != 0) mapped else keyCode
+        if (PlayerKeyBus.dispatch(effective, event.action, event.repeatCount)) {
             return true
         }
         // Emulator/PC keyboards: ESC acts as Back. If the on-screen keyboard is
@@ -111,19 +125,6 @@ class MainActivity : ComponentActivity() {
                 }
             }
             return true
-        }
-        // Gamepad A activates the focused item like D-pad center, B acts as Back.
-        // Bazi Google TV kumandalari ve set-top-box kumandalari yon tuslerini
-        // SYSTEM_NAVIGATION_* koduyla gonderir; Compose bu kodlari tanimaz.
-        // Onleri DPAD_*'a cevirerek kumanda her cihazda ayni calisir.
-        val mapped = when (keyCode) {
-            KeyEvent.KEYCODE_BUTTON_A -> KeyEvent.KEYCODE_DPAD_CENTER
-            KeyEvent.KEYCODE_BUTTON_B -> KeyEvent.KEYCODE_BACK
-            KeyEvent.KEYCODE_SYSTEM_NAVIGATION_UP -> KeyEvent.KEYCODE_DPAD_UP
-            KeyEvent.KEYCODE_SYSTEM_NAVIGATION_DOWN -> KeyEvent.KEYCODE_DPAD_DOWN
-            KeyEvent.KEYCODE_SYSTEM_NAVIGATION_LEFT -> KeyEvent.KEYCODE_DPAD_LEFT
-            KeyEvent.KEYCODE_SYSTEM_NAVIGATION_RIGHT -> KeyEvent.KEYCODE_DPAD_RIGHT
-            else -> 0
         }
         if (mapped != 0) {
             return super.dispatchKeyEvent(KeyEvent(event.action, mapped))

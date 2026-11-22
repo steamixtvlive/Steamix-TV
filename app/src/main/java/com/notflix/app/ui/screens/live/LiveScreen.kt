@@ -162,8 +162,8 @@ fun LiveScreen(
                 .padding(
                     start = screenPadding(),
                     end = screenPadding(),
-                    top = if (isTvLayout()) 18.dp else 12.dp,
-                    bottom = 8.dp
+                    top = if (isTvLayout()) 22.dp else 16.dp,
+                    bottom = 10.dp
                 ),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -182,7 +182,8 @@ fun LiveScreen(
                     },
                     color = NotflixColors.TextMuted,
                     fontSize = 11.sp,
-                    fontWeight = FontWeight.Medium
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.padding(top = 3.dp)
                 )
             }
             IconAction(
@@ -213,6 +214,7 @@ fun LiveScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = screenPadding())
+                .clip(RoundedCornerShape(16.dp))
                 .heightIn(min = 46.dp)
                 .onFocusChanged { searchFocused = it.isFocused }
                 .onPreviewKeyEvent { event ->
@@ -258,7 +260,7 @@ fun LiveScreen(
                 }
             },
             singleLine = true,
-            shape = RoundedCornerShape(10.dp),
+            shape = RoundedCornerShape(16.dp),
             textStyle = MaterialTheme.typography.bodyMedium,
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = NotflixColors.Accent,
@@ -266,8 +268,8 @@ fun LiveScreen(
                 focusedTextColor = NotflixColors.TextPrimary,
                 unfocusedTextColor = NotflixColors.TextPrimary,
                 cursorColor = NotflixColors.Accent,
-                focusedContainerColor = NotflixColors.Elevated,
-                unfocusedContainerColor = NotflixColors.Elevated
+            focusedContainerColor = NotflixColors.Card,
+            unfocusedContainerColor = NotflixColors.Elevated
             )
         )
 
