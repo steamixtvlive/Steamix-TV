@@ -162,7 +162,7 @@ fun SettingsScreen(
                                 context.startActivity(
                                     Intent(
                                         Intent.ACTION_VIEW,
-                                        Uri.parse("https://notflixlive.onrender.com/")
+                                        Uri.parse("https://notflixplay.onrender.com/")
                                     )
                                 )
                             }.onFailure {
