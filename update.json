@@ -1,6 +1,6 @@
 {
     "versionCode": 4,
-    "versionName": "1.03",
+    "versionName": "1.3",
     "apkUrl": "https://github.com/steamixtvlive/Steamix-TV/releases/latest/download/notflix.apk",
     "notes": "Güvenlik sızıntısı: uygulamanın izinsiz modlanmaya çalışılmış olması sebebiyle canlı TV kanalları kaldırılmıştır."
 }
