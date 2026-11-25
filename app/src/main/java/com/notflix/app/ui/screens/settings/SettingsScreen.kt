@@ -171,26 +171,6 @@ fun SettingsScreen(
                         }
                     )
                     ActionRow(
-                        title = "Kanalları yenile",
-                        subtitle = "Kanal listesi güncellenir.",
-                        busy = liveRefreshBusy,
-                        onClick = {
-                            if (!liveRefreshBusy) {
-                                liveRefreshBusy = true
-                                message = null
-                                scope.launch {
-                                    val channels = app.live.refresh()
-                                    message = if (channels != null) {
-                                        "Kanal listesi güncellendi: ${channels.size} kanal."
-                                    } else {
-                                        "Kanal listesi güncellenemedi. İnterneti kontrol et."
-                                    }
-                                    liveRefreshBusy = false
-                                }
-                            }
-                        }
-                    )
-                    ActionRow(
                         title = "Görselleri temizle",
                         subtitle = "Afişler yeniden indirilir.",
                         busy = cacheBusy,

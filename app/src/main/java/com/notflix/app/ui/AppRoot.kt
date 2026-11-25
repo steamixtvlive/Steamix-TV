@@ -62,7 +62,6 @@ import com.notflix.app.ui.screens.discover.DiscoverScreen
 import com.notflix.app.ui.screens.home.HomeScreen
 import com.notflix.app.ui.screens.library.ContinueScreen
 import com.notflix.app.ui.screens.library.LibraryScreen
-import com.notflix.app.ui.screens.live.LiveScreen
 import com.notflix.app.ui.screens.player.PlayerScreen
 import com.notflix.app.ui.screens.search.SearchScreen
 import com.notflix.app.ui.screens.settings.SettingsScreen
@@ -105,7 +104,6 @@ private val TABS = listOf(
     NavTab("discover", "Tavsiye"),
     NavTab("series", "Diziler"),
     NavTab("movies", "Filmler"),
-    NavTab("live", "Canlı TV"),
     NavTab("continue", "Devam Et"),
     NavTab("library", "Kitaplığım"),
     NavTab("top250", "Top 250")
@@ -118,11 +116,9 @@ fun AppRoot() {
 
     var stage by remember { mutableStateOf(Stage.Splash) }
     val stack = remember { mutableStateListOf<Screen>(Screen.Home) }
-    var liveChannels by remember { mutableStateOf<List<LiveChannel>>(emptyList()) }
     val current = stack.lastOrNull() ?: Screen.Home
     // Ekrandan cikinca kaybolan kaydirma/kategori secimleri burada tutulur.
     val memory = remember { UiMemory() }
-    var liveFavorites by remember { mutableStateOf(app.settings.liveFavorites().toSet()) }
 
     fun push(screen: Screen) {
         stack.add(screen)
@@ -216,7 +212,6 @@ fun AppRoot() {
                                         "discover" -> Screen.Discover
                                         "series" -> Screen.Series
                                         "movies" -> Screen.Movies
-                                        "live" -> Screen.Live
                                         "continue" -> Screen.Continue
                                         "library" -> Screen.Library
                                         "top250" -> Screen.Top250
@@ -250,10 +245,10 @@ fun AppRoot() {
                                     pageUrl = screen.pageUrl,
                                     title = screen.title,
                                     liveUrl = screen.liveUrl,
-                                    liveChannels = liveChannels,
+                                    liveChannels = emptyList(),
                                     liveIndex = screen.liveIndex,
                                     inPipMode = true,
-                                    favoriteUrls = liveFavorites,
+                                    favoriteUrls = emptySet(),
                                     onBack = { back() }
                                 )
                             } else {
@@ -261,11 +256,11 @@ fun AppRoot() {
                                     pageUrl = screen.pageUrl,
                                     title = screen.title,
                                     liveUrl = screen.liveUrl,
-                                    liveChannels = liveChannels,
+                                    liveChannels = emptyList(),
                                     liveIndex = screen.liveIndex,
                                     nextEpisodeUrl = screen.nextEpisodeUrl,
                                     nextEpisodeTitle = screen.nextEpisodeTitle,
-                                    favoriteUrls = liveFavorites,
+                                    favoriteUrls = emptySet(),
                                     onNextEpisode = { url, title ->
                                         // Geri yigini buyutmeden ayni ekranda degis.
                                         if (stack.isNotEmpty()) {
@@ -316,28 +311,6 @@ fun AppRoot() {
                                 onBack = { back() },
                                 onItemClick = { card -> push(Screen.Detail(card.url, card.title)) },
                                 gridState = memory.grid("collection-" + screen.title)
-                            )
-                            is Screen.Live -> LiveScreen(
-                                onChannelClick = { channel ->
-                                    val index = liveChannels.indexOfFirst { it.url == channel.url }
-                                    push(
-                                        Screen.Player(
-                                            pageUrl = channel.url,
-                                            title = channel.name,
-                                            liveUrl = channel.url,
-                                            liveIndex = index
-                                        )
-                                    )
-                                },
-                                onChannelsLoaded = { liveChannels = it },
-                                gridState = memory.grid("live"),
-                                initialGroup = memory.liveGroup("live"),
-                                onGroupChange = { group -> memory.setLiveGroup("live", group) },
-                                favoriteUrls = liveFavorites,
-                                onToggleFavorite = { channel ->
-                                    app.settings.toggleLiveFavorite(channel.url)
-                                    liveFavorites = app.settings.liveFavorites().toSet()
-                                }
                             )
                             is Screen.Continue -> {
                                 var entries by remember(screen) {
@@ -393,6 +366,7 @@ fun AppRoot() {
                                     push(Screen.Collection(person.name, person.url))
                                 }
                             )
+                            is Screen.Live -> { }
                         }
                     }
                 }
