@@ -18,6 +18,12 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.material3.Text
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.displayCutout
@@ -84,25 +90,10 @@ class MainActivity : ComponentActivity() {
         }
         WindowCompat.setDecorFitsSystemWindows(window, false)
         hideSystemBars()
-        if (!NativeBridge.isSecure()) {
-            setContent {
-                NotflixTheme {
-                    Box(modifier = Modifier.fillMaxSize().background(Color.White))
-                }
-            }
-            finish()
-            return
-        }
         setContent {
             NotflixTheme {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color.Black)
-                        .windowInsetsPadding(WindowInsets.displayCutout)
-                ) {
-                    AppRoot()
-                    VolumeOverlay()
+                Box(modifier = Modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) {
+                    Text("Uygulama sonlandırılmıştır", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.SemiBold)
                 }
             }
         }
