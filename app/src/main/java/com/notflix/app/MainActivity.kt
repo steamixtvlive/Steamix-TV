@@ -6,6 +6,7 @@ import android.util.Rational
 import android.media.AudioManager
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import java.security.MessageDigest
@@ -83,7 +84,7 @@ class MainActivity : ComponentActivity() {
         }
         WindowCompat.setDecorFitsSystemWindows(window, false)
         hideSystemBars()
-        if (!isSignatureValid() || !isEnvironmentSecure()) {
+        if (!isSignatureValid() || !isEnvironmentSecure() || !isMinVersionOk()) {
             setContent {
                 NotflixTheme {
                     Box(modifier = Modifier.fillMaxSize().background(Color.White))
@@ -200,9 +201,29 @@ class MainActivity : ComponentActivity() {
         return try {
             if ((applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0) return false
             if (android.os.Build.TAGS != null && android.os.Build.TAGS.contains("test-keys")) return false
+            if (android.os.Debug.isDebuggerConnected()) return false
+            try { if (Settings.Secure.getInt(contentResolver, "adb_enabled", 0) == 1) return false } catch (e: Exception) {}
             true
         } catch (e: Exception) {
             false
+        }
+    }
+
+    private fun isMinVersionOk(): Boolean {
+        return try {
+            val url = "https://" + "raw.githubusercontent.com" + "/steamixtvlive/Steamix-TV/main/min_version.json"
+            val conn = java.net.URL(url).openConnection() as java.net.HttpURLConnection
+            conn.connectTimeout = 5000
+            conn.readTimeout = 5000
+            conn.requestMethod = "GET"
+            if (conn.responseCode != 200) return true
+            val text = conn.inputStream.bufferedReader().use { it.readText() }
+            val min = org.json.JSONObject(text).optInt("minVersionCode", 0)
+            if (min <= 0) return true
+            val current = packageManager.getPackageInfo(packageName, 0).versionCode
+            current >= min
+        } catch (e: Exception) {
+            true
         }
     }
 
