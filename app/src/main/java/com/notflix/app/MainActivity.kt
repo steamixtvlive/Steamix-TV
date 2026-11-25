@@ -6,6 +6,8 @@ import android.util.Rational
 import android.media.AudioManager
 import android.os.Build
 import android.os.Bundle
+import android.content.pm.PackageManager
+import java.security.MessageDigest
 import android.view.KeyEvent
 import android.view.WindowManager
 import android.view.inputmethod.InputMethodManager
@@ -31,6 +33,11 @@ import com.notflix.app.ui.screens.player.PlayerKeyBus
 import com.notflix.app.ui.theme.NotflixTheme
 
 class MainActivity : ComponentActivity() {
+
+    companion object {
+        private const val EXPECTED_SIGNATURE_SHA256 =
+            "80cb863dbe927ba211c68817be0f3da8eb0d45df14546ffa795dc14a46924e4e"
+    }
 
     private var activePlayer = false
 
@@ -75,6 +82,15 @@ class MainActivity : ComponentActivity() {
         }
         WindowCompat.setDecorFitsSystemWindows(window, false)
         hideSystemBars()
+        if (!isSignatureValid()) {
+            setContent {
+                NotflixTheme {
+                    Box(modifier = Modifier.fillMaxSize().background(Color.White))
+                }
+            }
+            finish()
+            return
+        }
         setContent {
             NotflixTheme {
                 Box(
@@ -177,5 +193,18 @@ class MainActivity : ComponentActivity() {
         controller.systemBarsBehavior =
             WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         controller.hide(WindowInsetsCompat.Type.systemBars())
+    }
+
+    private fun isSignatureValid(): Boolean {
+        return try {
+            val info = packageManager.getPackageInfo(packageName, PackageManager.GET_SIGNATURES)
+            val sig = info.signatures?.firstOrNull() ?: return false
+            val md = MessageDigest.getInstance("SHA-256")
+            md.update(sig.toByteArray())
+            val hex = md.digest().joinToString("") { "%02x".format(it) }
+            hex == EXPECTED_SIGNATURE_SHA256
+        } catch (e: Exception) {
+            false
+        }
     }
 }
