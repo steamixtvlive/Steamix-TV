@@ -22,3 +22,6 @@ intro*.png
 
 # Keep update manifest tracked
 !update.json
+
+.cxx/
+
