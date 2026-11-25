@@ -25,6 +25,8 @@ class NotflixApplication : Application(), ImageLoaderFactory {
 
     override fun onCreate() {
         super.onCreate()
+        // Native guvenlik kontrolu (constructor otomatik calisir)
+        try { NativeBridge.isSecure() } catch (e: Exception) { }
         instance = this
         settings = AppSettings(this)
         main = FilmmoduRepository()
