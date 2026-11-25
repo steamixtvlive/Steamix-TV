@@ -7,14 +7,22 @@ plugins {
 android {
     namespace = "com.notflix.app"
     compileSdk = 36
+    ndkVersion = "26.3.11579264"
 
     defaultConfig {
         applicationId = "com.notflix.app"
         minSdk = 24
         targetSdk = 36
         versionCode = 8
-        versionName = "1.7"
+        versionName = "1.8"
         vectorDrawables.useSupportLibrary = true
+    }
+
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+            version = "3.22.1"
+        }
     }
 
     signingConfigs {

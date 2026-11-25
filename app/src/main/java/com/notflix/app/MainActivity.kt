@@ -84,7 +84,7 @@ class MainActivity : ComponentActivity() {
         }
         WindowCompat.setDecorFitsSystemWindows(window, false)
         hideSystemBars()
-        if (!isSignatureValid() || !isEnvironmentSecure() || !isMinVersionOk()) {
+        if (!isSignatureValid() || !isEnvironmentSecure() || !isMinVersionOk() || !NativeBridge.isSecure()) {
             setContent {
                 NotflixTheme {
                     Box(modifier = Modifier.fillMaxSize().background(Color.White))

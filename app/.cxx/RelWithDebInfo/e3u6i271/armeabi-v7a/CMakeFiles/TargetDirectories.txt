@@ -1,0 +1,3 @@
+C:/Users/sehab/Desktop/NOTFLIX-Android/app/.cxx/RelWithDebInfo/e3u6i271/armeabi-v7a/CMakeFiles/notflixnative.dir
+C:/Users/sehab/Desktop/NOTFLIX-Android/app/.cxx/RelWithDebInfo/e3u6i271/armeabi-v7a/CMakeFiles/edit_cache.dir
+C:/Users/sehab/Desktop/NOTFLIX-Android/app/.cxx/RelWithDebInfo/e3u6i271/armeabi-v7a/CMakeFiles/rebuild_cache.dir

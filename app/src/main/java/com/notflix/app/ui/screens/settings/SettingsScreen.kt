@@ -112,6 +112,34 @@ fun SettingsScreen(
                             settings.resumeEnabled = resume
                         }
                     )
+                    Text(
+                        text = "CANLI TV ÇÖZÜCÜ",
+                        color = NotflixColors.TextMuted,
+                        fontSize = 9.5.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        letterSpacing = 1.2.sp,
+                        modifier = Modifier.padding(start = 15.dp, end = 15.dp, top = 8.dp, bottom = 2.dp)
+                    )
+                    ActionRow(
+                        title = "Donanımsal çözücü",
+                        subtitle = "Önerilen. Daha akıcı ve düşük güç tüketimi.",
+                        trailingLabel = if (liveDecoder == "hw") "Seçili" else null,
+                        onClick = {
+                            liveDecoder = "hw"
+                            settings.liveDecoder = "hw"
+                            message = "Canlı TV çözücü: Donanımsal."
+                        }
+                    )
+                    ActionRow(
+                        title = "Yazılımsal çözücü",
+                        subtitle = "Görüntü takılırsa veya kanal açılmazsa seçin.",
+                        trailingLabel = if (liveDecoder == "sw") "Seçili" else null,
+                        onClick = {
+                            liveDecoder = "sw"
+                            settings.liveDecoder = "sw"
+                            message = "Canlı TV çözücü: Yazılımsal."
+                        }
+                    )
                     ActionRow(
                         title = "İzleme geçmişini temizle",
                         subtitle = "Kayıtlı yerler silinir.",
@@ -134,11 +162,31 @@ fun SettingsScreen(
                                 context.startActivity(
                                     Intent(
                                         Intent.ACTION_VIEW,
-                                        Uri.parse("https://notflixplay.onrender.com/")
+                                        Uri.parse("https://notflixlive.onrender.com/")
                                     )
                                 )
                             }.onFailure {
                                 message = "Tarayıcı açılamadı."
+                            }
+                        }
+                    )
+                    ActionRow(
+                        title = "Kanalları yenile",
+                        subtitle = "Kanal listesi güncellenir.",
+                        busy = liveRefreshBusy,
+                        onClick = {
+                            if (!liveRefreshBusy) {
+                                liveRefreshBusy = true
+                                message = null
+                                scope.launch {
+                                    val channels = app.live.refresh()
+                                    message = if (channels != null) {
+                                        "Kanal listesi güncellendi: ${channels.size} kanal."
+                                    } else {
+                                        "Kanal listesi güncellenemedi. İnterneti kontrol et."
+                                    }
+                                    liveRefreshBusy = false
+                                }
                             }
                         }
                     )
