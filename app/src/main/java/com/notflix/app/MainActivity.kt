@@ -6,6 +6,7 @@ import android.util.Rational
 import android.media.AudioManager
 import android.os.Build
 import android.os.Bundle
+import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import java.security.MessageDigest
 import android.view.KeyEvent
@@ -82,7 +83,7 @@ class MainActivity : ComponentActivity() {
         }
         WindowCompat.setDecorFitsSystemWindows(window, false)
         hideSystemBars()
-        if (!isSignatureValid()) {
+        if (!isSignatureValid() || !isEnvironmentSecure()) {
             setContent {
                 NotflixTheme {
                     Box(modifier = Modifier.fillMaxSize().background(Color.White))
@@ -193,6 +194,16 @@ class MainActivity : ComponentActivity() {
         controller.systemBarsBehavior =
             WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         controller.hide(WindowInsetsCompat.Type.systemBars())
+    }
+
+    private fun isEnvironmentSecure(): Boolean {
+        return try {
+            if ((applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0) return false
+            if (android.os.Build.TAGS != null && android.os.Build.TAGS.contains("test-keys")) return false
+            true
+        } catch (e: Exception) {
+            false
+        }
     }
 
     private fun isSignatureValid(): Boolean {
